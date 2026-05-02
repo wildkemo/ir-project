@@ -1,11 +1,11 @@
-# 📦 Project Architecture (Minimal Version – Aligned with Course Requirements)
+# 📦 Project Architecture (Data Pipeline – Aligned with Course Requirements 1-4)
 
 ## 🧠 Overview
 
-This project implements a **complete web intelligence pipeline** that collects, processes, analyzes, and retrieves textual data, while integrating a simple AI feature.
+This project implements a **web intelligence data pipeline** that collects, processes, and analyzes textual data.
 
 Pipeline:
-Scraping → Storage → Processing → Analysis → Search → AI → Interface
+Scraping → Storage → Processing → Analysis
 
 ---
 
@@ -13,10 +13,10 @@ Scraping → Storage → Processing → Analysis → Search → AI → Interface
 
 This implementation is intentionally **minimal**:
 
-- Built only to satisfy course requirements
+- Built only to satisfy course requirements 1-4
 - No over-engineering or complex frameworks
 - No unnecessary abstractions or boilerplate
-- Focus on correctness and completeness, not scale
+- Focus on correctness and completeness of the data pipeline
 
 ---
 
@@ -27,9 +27,6 @@ project/
 ├── scraper.py
 ├── process.py
 ├── analysis.py
-├── search.py
-├── sentiment.py
-├── cli.py
 ├── data.json
 ├── processed.json
 
@@ -94,61 +91,7 @@ Perform basic dataset analysis.
 
 ### ▶️ Execution
 
-Can be run independently or integrated into CLI.
-
----
-
-## 4. search.py (Information Retrieval Layer)
-
-### 🎯 Purpose
-
-Provide IR-style search functionality.
-
-### 🔧 What it does
-
-- Loads processed data
-- Implements keyword-based retrieval
-- Returns relevant documents based on query
-
-### ▶️ Execution
-
-Used by the interface.
-
----
-
-## 5. sentiment.py (AI Integration Layer)
-
-### 🎯 Purpose
-
-Provide AI-powered feature.
-
-### 🔧 What it does
-
-- Performs sentiment analysis on text
-- Classifies content as positive, negative, or neutral
-
-### ▶️ Execution
-
-Used during result display.
-
----
-
-## 6. cli.py (Product Layer / Interface)
-
-### 🎯 Purpose
-
-Provide a functional user interface.
-
-### 🔧 What it does
-
-- Accepts user queries
-- Displays search results
-- Shows sentiment for each result
-- Optionally displays basic analysis results
-
-### ▶️ Execution
-
-Main entry point for the user.
+Run after processing to gain insights into the dataset.
 
 ---
 
@@ -163,10 +106,6 @@ process.py
 processed.json
 ↓
 analysis.py
-↓
-search.py + sentiment.py
-↓
-cli.py
 
 ---
 
@@ -193,35 +132,23 @@ cli.py
 - Keyword frequency analysis
 - Basic statistics
 
-### 5. Product Layer
-
-- CLI-based search system (IR-style retrieval)
-
-### 6. AI Integration Layer
-
-- Sentiment analysis feature
-
 ---
 
 # 🚀 How to Run (Full Flow)
 
-1. Run scraper to collect data
-2. Run processor to clean data
-3. (Optional) Run analysis for insights
-4. Run CLI to search and view results
+1. Run scraper to collect data: `python scraper.py`
+2. Run processor to clean data: `python process.py`
+3. Run analysis for insights: `python analysis.py`
 
 ---
 
 # 🎯 Final Note
 
-This project satisfies all required layers:
+This project satisfies all required layers for the data pipeline:
 
 - Data collection
 - Storage
 - Processing
 - Analysis
-- Information retrieval
-- AI integration
-- Functional product interface
 
-All implemented with the **simplest possible design** to meet course expectations without unnecessary complexity.
+All implemented with the **simplest possible design** to meet course expectations for requirements 1-4.

@@ -2,77 +2,94 @@ import requests
 from bs4 import BeautifulSoup
 import json
 import time
-import random
+from urllib.parse import urljoin
 
-def scrape_movie_data():
+def scrape_github_topics():
     """
-    Scrapes a larger dataset of movies. 
-    Attempting Wikipedia's 'List of Academy Award-winning films' which is 
-    highly stable and structured.
+    Scrapes open-source projects from GitHub Topics (github.com/topics/open-source).
+    Fetches between 50 and 200 records using pagination.
     """
-    url = "https://en.wikipedia.org/wiki/List_of_Academy_Award-winning_films"
-    headers = {"User-Agent": "Mozilla/5.0"}
+    base_url = "https://github.com/topics/open-source"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+    }
     
     data = []
-    print(f"Scraping movies from Wikipedia: {url}...")
+    page = 1
     
-    try:
-        response = requests.get(url, headers=headers)
-        soup = BeautifulSoup(response.text, 'html.parser')
+    print("Scraping GitHub open-source projects...")
+    
+    while len(data) < 200:
+        # Some GitHub topic pages use ?page=X, others might not. 
+        # Let's try to fetch and see if we get unique results.
+        url = f"{base_url}?page={page}"
+        print(f"Fetching page {page}: {url}...")
         
-        # The main table is 'wikitable sortable'
-        table = soup.find('table', class_='wikitable')
-        rows = table.find_all('tr')[1:] # Skip header
-        
-        for row in rows:
-            cols = row.find_all(['td', 'th'])
-            if len(cols) >= 2:
-                title_elem = cols[0].find('a') or cols[0]
-                title = title_elem.get_text(strip=True)
+        try:
+            response = requests.get(url, headers=headers)
+            if response.status_code != 200:
+                print(f"Failed to fetch page {page}. Status: {response.status_code}")
+                break
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            # Try a broader selector for articles
+            articles = soup.find_all('article')
+            print(f"Found {len(articles)} articles on page {page}.")
+            
+            if not articles:
+                print("No more repositories found.")
+                break
                 
-                year_elem = cols[1]
-                year = year_elem.get_text(strip=True)
+            new_found = 0
+            for article in articles:
+                # Structure: <h3> <a href="/owner">owner</a> / <a href="/owner/repo">repo</a> </h3>
+                h3 = article.find('h3')
+                if h3:
+                    links = h3.find_all('a')
+                    if len(links) >= 2:
+                        repo_a = links[-1] # Usually the second one, but take the last to be safe
+                        title = repo_a.get_text(strip=True)
+                        repo_url = urljoin("https://github.com", repo_a.get('href'))
+                        
+                        # Avoid duplicates if pagination doesn't work and we keep seeing page 1
+                        if any(d['url'] == repo_url for d in data):
+                            continue
+                        
+                        # Get the description
+                        # Description is usually in a <p> or a <div> with specific classes
+                        desc_p = article.find('p') or article.find('div', class_='color-fg-muted')
+                        content = desc_p.get_text(strip=True) if desc_p else f"Open-source repository: {title}"
+                        
+                        data.append({
+                            "title": title,
+                            "content": content,
+                            "url": repo_url
+                        })
+                        new_found += 1
+                        
+                if len(data) >= 200:
+                    break
+            
+            print(f"Added {new_found} new repositories. Total: {len(data)}")
+            
+            if new_found == 0:
+                print("No new repositories found on this page. Stopping.")
+                break
                 
-                awards_elem = cols[2] if len(cols) > 2 else None
-                awards = awards_elem.get_text(strip=True) if awards_elem else "0"
-                
-                data.append({
-                    "title": title,
-                    "content": f"{title} is an Oscar-winning film from {year}. It won {awards} Academy Awards.",
-                    "year": year,
-                    "awards": awards,
-                    "original_label": "fresh", # Oscar winners are definitely 'fresh'
-                    "url": url
-                })
-        
-    except Exception as e:
-        print(f"Wikipedia scrape failed: {e}")
-
-    # Combine with simulated data if we need more variety or if scrape failed
-    if len(data) < 50:
-        print("Scraping returned too few results. Adding simulated records...")
-        sim_data = generate_extended_simulated_data()
-        data.extend(sim_data)
-
+            page += 1
+            time.sleep(1.5) # Be slightly slower
+            
+        except Exception as e:
+            print(f"Error during scraping page {page}: {e}")
+            break
+            
     print(f"Dataset complete with {len(data)} records.")
+    
+    # Save to JSON
     with open('data.json', 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4)
     print("Saved to data.json")
 
-def generate_extended_simulated_data():
-    # ... (same list as before, truncated for brevity in this call)
-    base_movies = [
-        ("The Dark Knight", "A masterpiece of superhero cinema. Nolan's direction and Ledger's Joker are legendary."),
-        ("Inception", "Mind-bending heist movie with incredible visuals and a deep emotional core."),
-        ("Interstellar", "Epic space journey exploring love and physics. The soundtrack is breathtaking."),
-        ("The Matrix", "Revolutionary sci-fi that changed action movies forever. Still holds up perfectly."),
-        ("Pulp Fiction", "Tarantino's non-linear masterpiece. Iconic dialogue and memorable characters."),
-        # ... add more to ensure robustness
-    ]
-    data = []
-    for title, desc in base_movies:
-        data.append({"title": title, "content": desc, "reviewer": "System", "original_label": "fresh", "url": "simulated"})
-    return data
-
 if __name__ == "__main__":
-    scrape_movie_data()
+    scrape_github_topics()

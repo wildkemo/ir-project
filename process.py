@@ -26,9 +26,8 @@ def clean_text(text):
     # Improved Stopwords removal
     stop_words = set(stopwords.words('english'))
     # Adding extra words identified as "invalid" or noisy for this specific context
-    extra_stop_words = {'that', 'about', 'is', 'it', 'to', 'in', 'on', 'of', 'at', 'by', 'for', 'with', 'from', 'was', 'were', 'has', 'have', 'had', 'been', 'be', 'an', 'and', 'the', 'a', 'emotional', 'look', 'movie', 'film', 'oscarwinning', 'oscarwin', 'academy', 'academi', 'award', 'won'}
+    extra_stop_words = {'that', 'about', 'is', 'it', 'to', 'in', 'on', 'of', 'at', 'by', 'for', 'with', 'from', 'was', 'were', 'has', 'have', 'had', 'been', 'be', 'an', 'and', 'the', 'a', 'software', 'open', 'source', 'project', 'repository', 'application', 'tool'}
     stop_words.update(extra_stop_words)
-    stop_words.add('award') # Explicitly add the stemmed/lemma version if needed
     
     # Initialize Stemmer and Lemmatizer
     stemmer = PorterStemmer()
