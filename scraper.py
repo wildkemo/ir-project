@@ -4,92 +4,135 @@ import json
 import time
 from urllib.parse import urljoin
 
-def scrape_github_topics():
+def get_repo_details(url, headers):
     """
-    Scrapes open-source projects from GitHub Topics (github.com/topics/open-source).
-    Fetches between 50 and 200 records using pagination.
+    Visits an individual repository page to extract ONLY the description.
     """
-    base_url = "https://github.com/topics/open-source"
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code != 200:
+            return None
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # 1. Best source: The meta description tag (cleanest summary)
+        meta_desc = soup.find('meta', {'name': 'description'})
+        if meta_desc and meta_desc.get('content'):
+            content = meta_desc.get('content')
+            # GitHub meta descriptions usually end with "- owner/repo: description"
+            # or start with a specific format. Let's try to clean it if needed.
+            # Usually: "A collective list of free APIs. Contribute to public-apis/public-apis development by creating an account on GitHub."
+            if "Contribute to" in content and "development by creating an account" in content:
+                content = content.split(". Contribute to")[0]
+            return content
+
+        # 2. Fallback: The specific <p> tag in the About section
+        about_p = soup.find('p', class_='f4 my-3') # Common class for repo description
+        if about_p:
+            return about_p.get_text(strip=True)
+            
+        return None
+    except Exception as e:
+        print(f"  Error fetching details for {url}: {e}")
+        return None
+
+def scrape_github_data():
+    """
+    Scrapes GitHub repositories by:
+    1. Finding 200 unique repository URLs from various topics.
+    2. Visiting each URL to get detailed content.
+    """
+    topics = ["open-source", "machine-learning", "data-science", "web-development", "python"]
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
     }
     
-    data = []
+    repo_urls = []
+    
+    print("Step 1: Discovering 200 repository links...")
+    
+    topic_idx = 0
     page = 1
     
-    print("Scraping GitHub open-source projects...")
-    
-    while len(data) < 200:
-        # Some GitHub topic pages use ?page=X, others might not. 
-        # Let's try to fetch and see if we get unique results.
-        url = f"{base_url}?page={page}"
-        print(f"Fetching page {page}: {url}...")
+    while len(repo_urls) < 200 and topic_idx < len(topics):
+        topic = topics[topic_idx]
+        url = f"https://github.com/topics/{topic}?page={page}"
+        print(f"  Searching topic '{topic}' (Page {page})...")
         
         try:
-            response = requests.get(url, headers=headers)
+            response = requests.get(url, headers=headers, timeout=10)
             if response.status_code != 200:
-                print(f"Failed to fetch page {page}. Status: {response.status_code}")
-                break
+                topic_idx += 1
+                page = 1
+                continue
             
             soup = BeautifulSoup(response.text, 'html.parser')
-            # Try a broader selector for articles
             articles = soup.find_all('article')
-            print(f"Found {len(articles)} articles on page {page}.")
             
             if not articles:
-                print("No more repositories found.")
-                break
+                topic_idx += 1
+                page = 1
+                continue
                 
-            new_found = 0
+            found_on_page = 0
             for article in articles:
-                # Structure: <h3> <a href="/owner">owner</a> / <a href="/owner/repo">repo</a> </h3>
                 h3 = article.find('h3')
                 if h3:
                     links = h3.find_all('a')
                     if len(links) >= 2:
-                        repo_a = links[-1] # Usually the second one, but take the last to be safe
-                        title = repo_a.get_text(strip=True)
+                        repo_a = links[-1]
                         repo_url = urljoin("https://github.com", repo_a.get('href'))
+                        title = repo_a.get_text(strip=True)
                         
-                        # Avoid duplicates if pagination doesn't work and we keep seeing page 1
-                        if any(d['url'] == repo_url for d in data):
-                            continue
-                        
-                        # Get the description
-                        # Description is usually in a <p> or a <div> with specific classes
-                        desc_p = article.find('p') or article.find('div', class_='color-fg-muted')
-                        content = desc_p.get_text(strip=True) if desc_p else f"Open-source repository: {title}"
-                        
-                        data.append({
-                            "title": title,
-                            "content": content,
-                            "url": repo_url
-                        })
-                        new_found += 1
-                        
-                if len(data) >= 200:
+                        if repo_url not in [r['url'] for r in repo_urls]:
+                            repo_urls.append({"title": title, "url": repo_url})
+                            found_on_page += 1
+                
+                if len(repo_urls) >= 200:
                     break
             
-            print(f"Added {new_found} new repositories. Total: {len(data)}")
-            
-            if new_found == 0:
-                print("No new repositories found on this page. Stopping.")
-                break
-                
+            print(f"    Added {found_on_page} links. Total found: {len(repo_urls)}")
             page += 1
-            time.sleep(1.5) # Be slightly slower
+            time.sleep(1) # Small delay between topic pages
             
         except Exception as e:
-            print(f"Error during scraping page {page}: {e}")
+            print(f"    Error discovery phase: {e}")
             break
-            
-    print(f"Dataset complete with {len(data)} records.")
+
+    print(f"\nStep 2: Scanning {len(repo_urls)} individual links for content...")
     
-    # Save to JSON
+    final_data = []
+    for i, repo in enumerate(repo_urls):
+        url = repo['url']
+        print(f"  [{i+1}/{len(repo_urls)}] Scanning: {url}")
+        
+        # Get deeper content
+        details = get_repo_details(url, headers)
+        
+        # If deep scan fails, we still keep the record but with a placeholder or the snippet if we had it
+        # Actually, let's just use what we found
+        content = details if details else f"Repository focusing on {repo['title']}"
+        
+        final_data.append({
+            "title": repo['title'],
+            "content": content,
+            "url": url
+        })
+        
+        # Delay to be respectful to GitHub
+        time.sleep(1.2) 
+        
+        # Periodic save just in case
+        if (i + 1) % 20 == 0:
+            with open('data.json', 'w', encoding='utf-8') as f:
+                json.dump(final_data, f, indent=4)
+            print(f"    (Progress saved to data.json)")
+
+    # Final save
     with open('data.json', 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=4)
-    print("Saved to data.json")
+        json.dump(final_data, f, indent=4)
+    
+    print(f"\nScanning complete. {len(final_data)} records saved to data.json")
 
 if __name__ == "__main__":
-    scrape_github_topics()
+    scrape_github_data()
