@@ -75,7 +75,12 @@ The output `data.json` follows a standardized schema:
 }
 ```
 
-## Resilience Features
+## Resilience and Compliance Features
+
+- **Programmatic `robots.txt` Support**:
+    - The script uses Python's `urllib.robotparser` to fetch and respect GitHub's `robots.txt` file at runtime.
+    - Before requesting any URL (including topic pages and repository details), it verifies if crawling is permitted for the `*` (any) User-Agent.
+    - If a path is disallowed, the script gracefully skips it and logs the event.
 - **Timeouts**: All network requests have a 10-second timeout to prevent the script from hanging on slow connections.
 - **Error Handling**: `try-except` blocks wrap both the discovery and scanning phases to handle network errors or unexpected HTML structure changes gracefully.
 - **User-Agent**: Uses a standard browser User-Agent string to ensure GitHub serves the correct HTML content.
