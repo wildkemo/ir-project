@@ -96,6 +96,55 @@ intelligent search experience
          │  • Semantic Search                                 │
          └────────────────────────────────────────────────────┘
 📁 COMPLETE PROJECT STRUCTURE
+
+
+backend/
+│
+├── scraper/
+│   ├── scraper.py
+│   └── utils.py
+│
+├── processing/
+│   ├── process.py
+│   └── text_cleaner.py
+│
+├── ir/
+│   ├── ir_engine.py
+│   ├── bm25.py
+│   └── search.py
+│
+├── semantic/
+│   ├── embeddings.py
+│   └── semantic_search.py
+│
+├── ai/
+│   └── summarizer.py
+│
+├── analytics/
+│   └── analysis.py
+│
+├── api/
+│   └── main.py
+│
+├── data/
+│   ├── raw/
+│   │   └── data.json
+│   │
+│   ├── processed/
+│   │   └── processed.json
+│   │
+│   ├── embeddings/
+│   │   └── embeddings.npy
+│   │
+│   └── summaries/
+│       └── summaries.json
+│
+├── requirements.txt
+└── run_pipeline.py
+
+--------------------------------------------
+
+
 project/
 │
 ├── backend/

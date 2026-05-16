@@ -6,274 +6,347 @@ from urllib.parse import urljoin
 from urllib.robotparser import RobotFileParser
 
 
-# =========================
-# ROBOTS.TXT
-# =========================
-def get_robot_parser(url="https://github.com/robots.txt"):
-    rp = RobotFileParser()
-    try:
-        rp.set_url(url)
-        rp.read()
-        return rp
-    except:
-        return None
+class GitHubScraper:
 
+    def __init__(self):
 
-# =========================
-# SAFE REQUEST
-# =========================
-def fetch(url, headers):
-    try:
-        r = requests.get(url, headers=headers, timeout=10)
-        if r.status_code == 200:
-            return r.text
-        return None
-    except:
-        return None
+        self.base_url = "https://github.com"
 
+        self.headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (X11; Linux x86_64) "
+                "AppleWebKit/537.36 "
+                "(KHTML, like Gecko) "
+                "Chrome/120.0 Safari/537.36"
+            )
+        }
 
-# =========================
-# NUMBER PARSER
-# =========================
-def parse_number(text):
-    if not text:
-        return 0
-    text = text.strip().lower().replace(",", "")
-
-    try:
-        if "k" in text:
-            return int(float(text.replace("k", "")) * 1000)
-        if "m" in text:
-            return int(float(text.replace("m", "")) * 1000000)
-        return int(text)
-    except:
-        return 0
-
-
-# =========================
-# REPO SCRAPER
-# =========================
-def get_repo_details(repo_url, headers, rp=None):
-
-    if rp and not rp.can_fetch("*", repo_url):
-        return None
-
-    html = fetch(repo_url, headers)
-    if not html:
-        return None
-
-    soup = BeautifulSoup(html, "html.parser")
-
-    data = {
-        "url": repo_url,
-        "title": "",
-        "description": "",
-        "stars": 0,
-        "forks": 0,
-        "watchers": 0,
-        "issues": 0,
-        "language": None,
-        "languages": {},
-        "license": None,
-        "topics": [],
-        "contributors": [],
-        "readme": "",
-        "last_commit": None,
-        "releases": [],
-        "packages": []
-    }
+        self.rp = self.load_robots()
 
     # =========================
-    # TITLE
+    # ROBOTS
     # =========================
-    h1 = soup.find("strong", itemprop="name")
-    if h1:
-        data["title"] = h1.get_text(strip=True)
+    def load_robots(self):
 
-    # =========================
-    # DESCRIPTION
-    # =========================
-    desc = soup.find("p", class_="f4 my-3")
-    if desc:
-        data["description"] = desc.get_text(strip=True)
+        rp = RobotFileParser()
 
-    if not data["description"]:
-        meta = soup.find("meta", {"name": "description"})
-        if meta:
-            data["description"] = meta.get("content", "")
+        try:
+            rp.set_url(f"{self.base_url}/robots.txt")
+            rp.read()
+            return rp
+        except:
+            return None
 
     # =========================
-    # STARS / FORKS / ISSUES
+    # SAFE REQUEST
     # =========================
-    counters = soup.find_all("a", class_="Link--muted")
+    def fetch(self, url):
 
-    for c in counters:
-        href = c.get("href", "")
-        text = c.get_text(strip=True)
+        try:
 
-        if "/stargazers" in href:
-            data["stars"] = parse_number(text)
-        elif "/forks" in href:
-            data["forks"] = parse_number(text)
-        elif "/watchers" in href:
-            data["watchers"] = parse_number(text)
-        elif "/issues" in href:
-            data["issues"] = parse_number(text)
+            if self.rp and not self.rp.can_fetch("*", url):
+                print(f"[BLOCKED] {url}")
+                return None
 
-    # =========================
-    # LANGUAGE
-    # =========================
-    lang_items = soup.select("ul.list-style-none li")
+            r = requests.get(url, headers=self.headers, timeout=15)
 
-    for li in lang_items:
-        lang_name = li.find("span", class_="color-fg-default")
-        if lang_name:
-            name = lang_name.get_text(strip=True)
-            data["languages"][name] = 1
+            if r.status_code == 200:
+                return r.text
 
-    if data["languages"]:
-        data["language"] = list(data["languages"].keys())[0]
+            if r.status_code == 429:
+                print("[RATE LIMIT] sleeping 60s...")
+                time.sleep(60)
+                return None
+
+            return None
+
+        except Exception as e:
+            print(f"[ERROR] {url} -> {e}")
+            return None
 
     # =========================
-    # TOPICS
+    # ALL TOPICS
     # =========================
-    data["topics"] = [
-        t.get_text(strip=True)
-        for t in soup.select("a.topic-tag")
-    ]
+    def get_all_topics(self):
 
-    # =========================
-    # LICENSE
-    # =========================
-    license_tag = soup.find("a", href=lambda x: x and "LICENSE" in x)
-    if license_tag:
-        data["license"] = license_tag.get_text(strip=True)
+        url = f"{self.base_url}/topics"
 
-    # =========================
-    # README
-    # =========================
-    readme = soup.find("div", id="readme")
-    if readme:
-        data["readme"] = readme.get_text(" ", strip=True)[:1500]
+        html = self.fetch(url)
 
-    # =========================
-    # CONTRIBUTORS
-    # =========================
-    contrib_html = fetch(repo_url + "/graphs/contributors", headers)
-    if contrib_html:
-        c_soup = BeautifulSoup(contrib_html, "html.parser")
-        users = c_soup.select("h3 a")
-        data["contributors"] = list(set(
-            u.get_text(strip=True) for u in users if u.get_text(strip=True)
-        ))[:20]
+        if not html:
+            return []
 
-    # =========================
-    # RELEASES
-    # =========================
-    rel_html = fetch(repo_url + "/releases", headers)
-    if rel_html:
-        r_soup = BeautifulSoup(rel_html, "html.parser")
-        data["releases"] = [
-            t.get_text(strip=True)
-            for t in r_soup.select("a.Link--primary")[:5]
-        ]
+        soup = BeautifulSoup(html, "html.parser")
 
-    # =========================
-    # LAST ACTIVITY
-    # =========================
-    commit = soup.find("relative-time")
-    if commit:
-        data["last_commit"] = commit.get("datetime")
+        topics = set()
 
-    return data
+        for link in soup.select("a[href^='/topics/']"):
 
+            href = link.get("href")
 
-# =========================
-# SCRAPE 200+ REPOS
-# =========================
-def scrape_github_data():
-
-    topics = [
-        "machine-learning",
-        "python",
-        "data-science",
-        "web-development",
-        "artificial-intelligence",
-        "deep-learning",
-        "computer-vision"
-    ]
-
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
-
-    rp = get_robot_parser()
-
-    repo_urls = set()
-
-    print("Collecting repository URLs...")
-
-    # =========================
-    # MULTI-PAGE SCRAPING
-    # =========================
-    for topic in topics:
-        for page in range(1, 6):  # 5 pages per topic
-            url = f"https://github.com/topics/{topic}?page={page}"
-
-            html = fetch(url, headers)
-            if not html:
+            if not href:
                 continue
 
-            soup = BeautifulSoup(html, "html.parser")
-            articles = soup.find_all("article")
+            topic = href.split("/topics/")[-1].split("?")[0]
 
-            if not articles:
-                break
+            if topic:
+                topics.add(topic)
 
-            for a in articles:
-                link = a.find("a")
-                if link and link.get("href"):
-                    full = urljoin("https://github.com", link["href"])
-                    repo_urls.add(full)
-
-            time.sleep(1)
-
-            if len(repo_urls) >= 250:
-                break
-
-        if len(repo_urls) >= 250:
-            break
-
-    repo_urls = list(repo_urls)[:220]
-
-    print(f"Collected {len(repo_urls)} repositories")
-
-    results = []
+        return list(topics)
 
     # =========================
-    # SCRAPE DETAILS
+    # REPO COLLECTION
     # =========================
-    for i, url in enumerate(repo_urls):
+    def collect_repos(self, topics, max_repos=5000):
 
-        print(f"[{i+1}/{len(repo_urls)}] {url}")
+        repo_urls = set()
 
-        data = get_repo_details(url, headers, rp)
+        print("\nCollecting repositories...\n")
 
-        if data:
-            results.append(data)
+        for topic in topics:
 
-        time.sleep(1.2)
+            print(f"\n[TOPIC] {topic}")
 
-        # auto-save
-        if i % 20 == 0:
-            with open("data.json", "w", encoding="utf-8") as f:
-                json.dump(results, f, indent=4)
+            page = 1
 
-    with open("data.json", "w", encoding="utf-8") as f:
-        json.dump(results, f, indent=4)
+            while True:
 
-    print(f"Done. Total repos: {len(results)}")
+                url = f"{self.base_url}/topics/{topic}?page={page}"
+
+                html = self.fetch(url)
+
+                if not html:
+                    break
+
+                soup = BeautifulSoup(html, "html.parser")
+
+                articles = soup.find_all("article")
+
+                if not articles:
+                    break
+
+                for article in articles:
+
+                    for link in article.select("h3 a"):
+
+                        href = link.get("href")
+
+                        if href and href.count("/") == 2:
+
+                            full = urljoin(self.base_url, href)
+                            repo_urls.add(full)
+
+                print(f"  page {page} -> {len(repo_urls)} repos")
+
+                page += 1
+
+                time.sleep(1)
+
+                if len(repo_urls) >= max_repos:
+                    return list(repo_urls)
+
+        return list(repo_urls)
+
+    # =========================
+    # NUMBER PARSER
+    # =========================
+    def parse_number(self, text):
+
+        if not text:
+            return 0
+
+        text = text.lower().replace(",", "").strip()
+
+        try:
+            if "k" in text:
+                return int(float(text.replace("k", "")) * 1000)
+
+            if "m" in text:
+                return int(float(text.replace("m", "")) * 1000000)
+
+            return int(text)
+
+        except:
+            return 0
+
+    # =========================
+    # LANGUAGE EXTRACTION (FIXED)
+    # =========================
+    def extract_languages(self, soup):
+
+        languages = {}
+
+        # METHOD 1: modern GitHub UI
+        blocks = soup.select("li.d-inline")
+
+        for b in blocks:
+
+            lang = b.select_one("span.color-fg-default")
+
+            if lang:
+
+                name = lang.get_text(strip=True)
+
+                if name:
+                    languages[name] = 1
+
+        # METHOD 2: fallback scan
+        if not languages:
+
+            known = [
+                "Python", "JavaScript", "TypeScript",
+                "Java", "C++", "C", "Go",
+                "Rust", "PHP", "C#"
+            ]
+
+            text = soup.get_text(" ", strip=True)
+
+            for k in known:
+
+                if k in text:
+                    languages[k] = 1
+
+        return languages
+
+    # =========================
+    # SCRAPE SINGLE REPO
+    # =========================
+    def scrape_repo(self, url):
+
+        html = self.fetch(url)
+
+        if not html:
+            return None
+
+        soup = BeautifulSoup(html, "html.parser")
+
+        data = {
+            "url": url,
+            "title": "",
+            "description": "",
+            "stars": 0,
+            "forks": 0,
+            "watchers": 0,
+            "issues": 0,
+            "language": None,
+            "languages": {},
+            "topics": [],
+            "readme": ""
+        }
+
+        # =====================
+        # TITLE
+        # =====================
+        title = soup.select_one("strong.mr-2.flex-self-stretch a")
+
+        if title:
+            data["title"] = title.get_text(strip=True)
+
+        if not data["title"]:
+            t = soup.find("title")
+            if t:
+                data["title"] = t.get_text(strip=True).split(":")[0]
+
+        # =====================
+        # DESCRIPTION
+        # =====================
+        meta = soup.find("meta", {"name": "description"})
+        if meta:
+            data["description"] = meta.get("content", "").strip()
+
+        # =====================
+        # STATS
+        # =====================
+        for a in soup.find_all("a"):
+
+            href = a.get("href", "")
+            text = a.get_text(strip=True)
+
+            if "/stargazers" in href:
+                data["stars"] = self.parse_number(text)
+
+            elif "/forks" in href:
+                data["forks"] = self.parse_number(text)
+
+            elif "/watchers" in href:
+                data["watchers"] = self.parse_number(text)
+
+            elif "/issues" in href:
+                data["issues"] = self.parse_number(text)
+
+        # =====================
+        # LANGUAGES (FIXED)
+        # =====================
+        data["languages"] = self.extract_languages(soup)
+
+        if data["languages"]:
+            data["language"] = list(data["languages"].keys())[0]
+
+        # =====================
+        # TOPICS (FIXED)
+        # =====================
+        topics = soup.select("a[href*='/topics/']")
+
+        data["topics"] = list(set(
+            t.get_text(strip=True)
+            for t in topics
+            if t.get_text(strip=True)
+        ))
+
+        # =====================
+        # README
+        # =====================
+        readme = soup.find("article")
+
+        if readme:
+            data["readme"] = readme.get_text(" ", strip=True)[:2000]
+
+        return data
+
+    # =========================
+    # RUN
+    # =========================
+    def run(self, max_repos=5000):
+
+        topics = self.get_all_topics()
+
+        print(f"\nFound {len(topics)} topics\n")
+
+        repos = self.collect_repos(topics, max_repos)
+
+        print(f"\nCollected {len(repos)} repos\n")
+
+        results = []
+
+        for i, repo in enumerate(repos):
+
+            print(f"[{i+1}/{len(repos)}] {repo}")
+
+            data = self.scrape_repo(repo)
+
+            if data:
+                results.append(data)
+
+            # auto-save
+            if (i + 1) % 20 == 0:
+
+                with open("data.json", "w", encoding="utf-8") as f:
+                    json.dump(results, f, indent=4, ensure_ascii=False)
+
+                print("[AUTO-SAVED]")
+
+            time.sleep(1.2)
+
+        with open("data.json", "w", encoding="utf-8") as f:
+            json.dump(results, f, indent=4, ensure_ascii=False)
+
+        print(f"\nDONE: {len(results)} repositories saved")
 
 
+# =========================
+# EXECUTE
+# =========================
 if __name__ == "__main__":
-    scrape_github_data()
+
+    scraper = GitHubScraper()
+    scraper.run(max_repos=5000)
