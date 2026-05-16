@@ -1,159 +1,192 @@
 import json
 import math
+import numpy as np
 from collections import defaultdict, Counter
+from sentence_transformers import SentenceTransformer
+#pip instasll sentence-transformers
+
 
 
 class IREngine:
     def __init__(self, data_path="processed.json"):
-        with open(data_path, "r", encoding="utf-8") as f:
-            self.docs = json.load(f)
-
-        self.N = len(self.docs)
-
-        # IR structures
+        self.data_path = data_path
+        self.documents = []
         self.inverted_index = defaultdict(list)
-        self.doc_freq = defaultdict(int)
+        self.doc_lengths = {}
+        self.avg_doc_length = 0
+        self.N = 0
 
-        # build everything
-        self.build_index()
+        self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+        self.doc_embeddings = None
 
-    # =========================
-    # BUILD INVERTED INDEX
-    # =========================
-    def build_index(self):
-        for doc_id, doc in enumerate(self.docs):
+        self.load_data()
+        self.build_inverted_index()
+        self.build_embeddings()
+
+    def load_data(self):
+        with open(self.data_path, "r", encoding="utf-8") as f:
+            self.documents = json.load(f)
+
+        self.N = len(self.documents)
+
+        total_length = 0
+        for i, doc in enumerate(self.documents):
             tokens = doc.get("tokens", [])
+            self.doc_lengths[i] = len(tokens)
+            total_length += len(tokens)
 
-            unique_tokens = set(tokens)
+        self.avg_doc_length = total_length / self.N if self.N > 0 else 0
 
-            for token in unique_tokens:
-                self.inverted_index[token].append(doc_id)
-                self.doc_freq[token] += 1
+    def build_inverted_index(self):
+        for doc_id, doc in enumerate(self.documents):
+            tokens = doc.get("tokens", [])
+            term_freq = Counter(tokens)
 
-        print(f"[INFO] Indexed {self.N} documents")
-        print(f"[INFO] Vocabulary size: {len(self.inverted_index)}")
+            for term, freq in term_freq.items():
+                self.inverted_index[term].append({
+                    "doc_id": doc_id,
+                    "freq": freq
+                })
 
-    # =========================
-    # TF (TERM FREQUENCY)
-    # =========================
-    def tf(self, term, doc_tokens):
-        return doc_tokens.count(term) / len(doc_tokens) if doc_tokens else 0
-
-    # =========================
-    # IDF (INVERSE DOC FREQ)
-    # =========================
-    def idf(self, term):
-        df = self.doc_freq.get(term, 0)
-        return math.log((self.N + 1) / (df + 1)) + 1
-
-    # =========================
-    # BM25 SCORE
-    # =========================
-    def bm25(self, query_terms, doc, k1=1.5, b=0.75):
-
-        doc_tokens = doc.get("tokens", [])
-        doc_len = len(doc_tokens)
-
-        avgdl = sum(len(d["tokens"]) for d in self.docs) / self.N
-
-        token_counts = Counter(doc_tokens)
-
+    def bm25_score(self, query_tokens, doc_id, k1=1.5, b=0.75):
         score = 0
+        doc_len = self.doc_lengths.get(doc_id, 0)
 
-        for term in query_terms:
+        for term in query_tokens:
+            postings = self.inverted_index.get(term, [])
+            df = len(postings)
 
-            if term not in token_counts:
+            if df == 0:
                 continue
 
-            df = self.doc_freq.get(term, 0)
-            idf = math.log((self.N - df + 0.5) / (df + 0.5) + 1)
+            idf = math.log(1 + (self.N - df + 0.5) / (df + 0.5))
 
-            tf = token_counts[term]
+            freq = 0
+            for posting in postings:
+                if posting["doc_id"] == doc_id:
+                    freq = posting["freq"]
+                    break
 
-            numerator = tf * (k1 + 1)
-            denominator = tf + k1 * (1 - b + b * (doc_len / avgdl))
+            numerator = freq * (k1 + 1)
+            denominator = freq + k1 * (1 - b + b * doc_len / self.avg_doc_length)
 
             score += idf * (numerator / denominator)
 
         return score
 
-    # =========================
-    # POPULARITY SCORE
-    # =========================
-    def popularity_score(self, doc):
-        stars = doc.get("stars", 0)
-        forks = doc.get("forks", 0)
+    def lexical_search(self, query, top_k=10):
+        query_tokens = self.process_query(query)
+        candidate_docs = set()
 
-        return math.log1p(stars) + math.log1p(forks)
-
-    # =========================
-    # MAIN RANKING FUNCTION
-    # =========================
-    def rank(self, query):
-        query_terms = query.lower().split()
+        for term in query_tokens:
+            for posting in self.inverted_index.get(term, []):
+                candidate_docs.add(posting["doc_id"])
 
         results = []
 
-        for doc_id, doc in enumerate(self.docs):
+        for doc_id in candidate_docs:
+            score = self.bm25_score(query_tokens, doc_id)
+            results.append((doc_id, score))
 
-            bm25_score = self.bm25(query_terms, doc)
-            pop_score = self.popularity_score(doc)
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results[:top_k]
 
-            # FINAL HYBRID SCORE
-            final_score = (0.7 * bm25_score) + (0.3 * pop_score)
+    def build_embeddings(self):
+        texts = []
 
-            results.append((final_score, doc))
+        for doc in self.documents:
+            text_parts = [
+                doc.get("title", ""),
+                doc.get("description", ""),
+                doc.get("readme", ""),
+                " ".join(doc.get("tokens", []))
+            ]
+            texts.append(" ".join(text_parts))
 
-        results.sort(reverse=True, key=lambda x: x[0])
+        self.doc_embeddings = self.embedding_model.encode(
+            texts,
+            convert_to_numpy=True,
+            normalize_embeddings=True
+        )
 
-        return results
+    def semantic_search(self, query, top_k=10):
+        query_embedding = self.embedding_model.encode(
+            [query],
+            convert_to_numpy=True,
+            normalize_embeddings=True
+        )[0]
 
-    # =========================
-    # SEARCH FUNCTION (API)
-    # =========================
-    def search(self, query, top_k=10):
+        similarities = np.dot(self.doc_embeddings, query_embedding)
 
-        ranked = self.rank(query)
+        ranked = sorted(
+            enumerate(similarities),
+            key=lambda x: x[1],
+            reverse=True
+        )
 
-        output = []
+        return ranked[:top_k]
 
-        for score, doc in ranked[:top_k]:
+    def hybrid_search(self, query, top_k=10, alpha=0.6):
+        bm25_results = self.lexical_search(query, top_k=50)
+        semantic_results = self.semantic_search(query, top_k=50)
 
-            output.append({
-                "title": doc.get("title"),
-                "url": doc.get("url"),
-                "score": round(score, 4),
+        scores = defaultdict(lambda: {
+            "bm25": 0,
+            "semantic": 0
+        })
+
+        max_bm25 = max([score for _, score in bm25_results], default=1)
+
+        for doc_id, score in bm25_results:
+            scores[doc_id]["bm25"] = score / max_bm25 if max_bm25 > 0 else 0
+
+        for doc_id, score in semantic_results:
+            scores[doc_id]["semantic"] = float(score)
+
+        final_results = []
+
+        for doc_id, score_data in scores.items():
+            final_score = (
+                alpha * score_data["bm25"]
+                + (1 - alpha) * score_data["semantic"]
+            )
+
+            doc = self.documents[doc_id]
+
+            final_results.append({
+                "id": doc_id,
+                "title": doc.get("title", "No title"),
+                "url": doc.get("url", ""),
+                "description": doc.get("description", ""),
                 "stars": doc.get("stars", 0),
-                "forks": doc.get("forks", 0),
-                "language": doc.get("language"),
-                "topics": doc.get("topics", [])
+                "language": doc.get("language", ""),
+                "bm25_score": round(score_data["bm25"], 4),
+                "semantic_score": round(score_data["semantic"], 4),
+                "final_score": round(final_score, 4)
             })
 
-        return output
+        final_results.sort(key=lambda x: x["final_score"], reverse=True)
+        return final_results[:top_k]
+
+    def process_query(self, query):
+        return query.lower().split()
 
 
-# =========================
-# TEST RUN (OPTIONAL)
-# =========================
 if __name__ == "__main__":
-
     engine = IREngine("processed.json")
 
     while True:
-        query = input("\nSearch query (or 'exit'): ")
+        query = input("\nSearch GitHub repos: ")
 
-        if query.lower() == "exit":
+        if query.lower() in ["exit", "quit"]:
             break
 
-        results = engine.search(query)
+        results = engine.hybrid_search(query)
 
-        print("\nTop Results:\n")
-
-        for r in results:
-            print("----------------------------")
-            print("Title:", r["title"])
-            print("URL:", r["url"])
-            print("Score:", r["score"])
-            print("Stars:", r["stars"])
-            print("Forks:", r["forks"])
-            print("Language:", r["language"])
+        for i, result in enumerate(results, 1):
+            print(f"\n{i}. {result['title']}")
+            print(f"URL: {result['url']}")
+            print(f"Description: {result['description']}")
+            print(f"BM25 Score: {result['bm25_score']}")
+            print(f"Semantic Score: {result['semantic_score']}")
+            print(f"Final Score: {result['final_score']}")
