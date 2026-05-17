@@ -1,0 +1,253 @@
+{
+  "languages": [
+    {
+      "label": "JavaScript",
+      "value": "JavaScript",
+      "count": 453
+    },
+    {
+      "label": "TypeScript",
+      "value": "TypeScript",
+      "count": 307
+    },
+    {
+      "label": "Python",
+      "value": "Python",
+      "count": 293
+    },
+    {
+      "label": "Go",
+      "value": "Go",
+      "count": 67
+    },
+    {
+      "label": "HTML",
+      "value": "HTML",
+      "count": 67
+    },
+    {
+      "label": "C",
+      "value": "C",
+      "count": 53
+    },
+    {
+      "label": "Java",
+      "value": "Java",
+      "count": 53
+    },
+    {
+      "label": "CSS",
+      "value": "CSS",
+      "count": 51
+    },
+    {
+      "label": "C++",
+      "value": "C++",
+      "count": 48
+    },
+    {
+      "label": "Rust",
+      "value": "Rust",
+      "count": 39
+    },
+    {
+      "label": "PHP",
+      "value": "PHP",
+      "count": 37
+    },
+    {
+      "label": "Shell",
+      "value": "Shell",
+      "count": 24
+    }
+  ],
+  "topics": [
+    {
+      "label": "Javascript",
+      "value": "javascript",
+      "count": 391
+    },
+    {
+      "label": "Nodejs",
+      "value": "nodejs",
+      "count": 344
+    },
+    {
+      "label": "Python",
+      "value": "python",
+      "count": 338
+    },
+    {
+      "label": "Css",
+      "value": "css",
+      "count": 275
+    },
+    {
+      "label": "Npm",
+      "value": "npm",
+      "count": 267
+    },
+    {
+      "label": "Chrome",
+      "value": "chrome",
+      "count": 266
+    },
+    {
+      "label": "Database",
+      "value": "database",
+      "count": 260
+    },
+    {
+      "label": "Typescript",
+      "value": "typescript",
+      "count": 181
+    },
+    {
+      "label": "Html",
+      "value": "html",
+      "count": 124
+    },
+    {
+      "label": "React",
+      "value": "react",
+      "count": 121
+    },
+    {
+      "label": "Project Management",
+      "value": "project-management",
+      "count": 117
+    },
+    {
+      "label": "Hacktoberfest",
+      "value": "hacktoberfest",
+      "count": 116
+    },
+    {
+      "label": "Firefox",
+      "value": "firefox",
+      "count": 88
+    },
+    {
+      "label": "Sql",
+      "value": "sql",
+      "count": 84
+    },
+    {
+      "label": "Chrome Extension",
+      "value": "chrome-extension",
+      "count": 82
+    },
+    {
+      "label": "Node",
+      "value": "node",
+      "count": 74
+    },
+    {
+      "label": "Postgresql",
+      "value": "postgresql",
+      "count": 67
+    },
+    {
+      "label": "Mysql",
+      "value": "mysql",
+      "count": 63
+    },
+    {
+      "label": "Docker",
+      "value": "docker",
+      "count": 63
+    },
+    {
+      "label": "Cli",
+      "value": "cli",
+      "count": 61
+    },
+    {
+      "label": "Ai",
+      "value": "ai",
+      "count": 57
+    },
+    {
+      "label": "Vue",
+      "value": "vue",
+      "count": 55
+    },
+    {
+      "label": "Browser",
+      "value": "browser",
+      "count": 52
+    },
+    {
+      "label": "Golang",
+      "value": "golang",
+      "count": 52
+    },
+    {
+      "label": "Machine Learning",
+      "value": "machine-learning",
+      "count": 49
+    }
+  ],
+  "levels": [
+    {
+      "label": "Beginner",
+      "value": "beginner"
+    },
+    {
+      "label": "Intermediate",
+      "value": "intermediate"
+    },
+    {
+      "label": "Advanced",
+      "value": "advanced"
+    }
+  ],
+  "goals": [
+    {
+      "label": "Learning",
+      "value": "learning"
+    },
+    {
+      "label": "Contribution",
+      "value": "contribution"
+    },
+    {
+      "label": "Production use",
+      "value": "production"
+    },
+    {
+      "label": "Research",
+      "value": "research"
+    }
+  ],
+  "popularity": [
+    {
+      "label": "Popular repos",
+      "value": "popular",
+      "description": "Prefer high-star repos"
+    },
+    {
+      "label": "Balanced",
+      "value": "balanced",
+      "description": "Mix popularity and relevance"
+    },
+    {
+      "label": "Hidden gems",
+      "value": "hidden_gems",
+      "description": "Allow smaller repos"
+    },
+    {
+      "label": "Any",
+      "value": "any",
+      "description": "No star filter"
+    }
+  ],
+  "stats": {
+    "repo_count": 1656,
+    "unique_languages": 58,
+    "unique_topics": 6055,
+    "min_stars": 0,
+    "max_stars": 0,
+    "avg_stars": 0.0
+  }
+}

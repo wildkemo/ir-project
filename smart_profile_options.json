@@ -1,0 +1,376 @@
+{
+  "project_types": [
+    {
+      "label": "Web Development",
+      "value": "web_dev",
+      "topics": [
+        "javascript",
+        "typescript",
+        "react",
+        "nodejs",
+        "html",
+        "css",
+        "frontend",
+        "web"
+      ]
+    },
+    {
+      "label": "AI / Machine Learning",
+      "value": "ai_ml",
+      "topics": [
+        "machine-learning",
+        "ai",
+        "artificial-intelligence",
+        "deep-learning",
+        "nlp",
+        "computer-vision",
+        "image-processing",
+        "opencv",
+        "pytorch",
+        "tensorflow"
+      ]
+    },
+    {
+      "label": "Data Science",
+      "value": "data_science",
+      "topics": [
+        "data-science",
+        "data-analysis",
+        "analytics",
+        "python",
+        "pandas",
+        "jupyter",
+        "visualization"
+      ]
+    },
+    {
+      "label": "Database / Backend",
+      "value": "database_backend",
+      "topics": [
+        "database",
+        "backend",
+        "api",
+        "postgresql",
+        "sql",
+        "server",
+        "go",
+        "nodejs"
+      ]
+    },
+    {
+      "label": "Browser Extension",
+      "value": "browser_extension",
+      "topics": [
+        "chrome",
+        "firefox",
+        "chrome-extension",
+        "webextension",
+        "browser",
+        "extension"
+      ]
+    },
+    {
+      "label": "Game Development",
+      "value": "game_dev",
+      "topics": [
+        "game",
+        "games",
+        "game-development",
+        "engine",
+        "multiplayer",
+        "opengl"
+      ]
+    },
+    {
+      "label": "CLI / Developer Tools",
+      "value": "cli_tools",
+      "topics": [
+        "cli",
+        "command-line",
+        "developer-tools",
+        "tool",
+        "automation",
+        "terminal"
+      ]
+    },
+    {
+      "label": "Project Management / Productivity",
+      "value": "productivity",
+      "topics": [
+        "project-management",
+        "productivity",
+        "time-tracker",
+        "timetracking",
+        "scheduling"
+      ]
+    },
+    {
+      "label": "Security",
+      "value": "security",
+      "topics": [
+        "security",
+        "cybersecurity",
+        "malware",
+        "vulnerability",
+        "analysis"
+      ]
+    }
+  ],
+  "languages": [
+    {
+      "label": "JavaScript",
+      "value": "JavaScript",
+      "count": 453
+    },
+    {
+      "label": "TypeScript",
+      "value": "TypeScript",
+      "count": 307
+    },
+    {
+      "label": "Python",
+      "value": "Python",
+      "count": 293
+    },
+    {
+      "label": "Go",
+      "value": "Go",
+      "count": 67
+    },
+    {
+      "label": "HTML",
+      "value": "HTML",
+      "count": 67
+    },
+    {
+      "label": "C",
+      "value": "C",
+      "count": 53
+    },
+    {
+      "label": "Java",
+      "value": "Java",
+      "count": 53
+    },
+    {
+      "label": "CSS",
+      "value": "CSS",
+      "count": 51
+    },
+    {
+      "label": "C++",
+      "value": "C++",
+      "count": 48
+    },
+    {
+      "label": "Rust",
+      "value": "Rust",
+      "count": 39
+    },
+    {
+      "label": "PHP",
+      "value": "PHP",
+      "count": 37
+    },
+    {
+      "label": "Shell",
+      "value": "Shell",
+      "count": 24
+    }
+  ],
+  "goals": [
+    {
+      "label": "Learn from the project",
+      "value": "learning",
+      "signals": [
+        "learn",
+        "learning",
+        "tutorial",
+        "guide",
+        "course",
+        "example",
+        "examples",
+        "getting-started"
+      ]
+    },
+    {
+      "label": "Contribute to open source",
+      "value": "contribution",
+      "signals": [
+        "contribute",
+        "contributing",
+        "contribution",
+        "issue",
+        "issues",
+        "pull-request",
+        "community",
+        "good-first-issue"
+      ]
+    },
+    {
+      "label": "Use it in my own project",
+      "value": "use",
+      "signals": [
+        "install",
+        "usage",
+        "api",
+        "documentation",
+        "package",
+        "npm",
+        "pip",
+        "library"
+      ]
+    },
+    {
+      "label": "Find production-ready tools",
+      "value": "production",
+      "signals": [
+        "production",
+        "stable",
+        "scalable",
+        "deploy",
+        "deployment",
+        "docker",
+        "kubernetes"
+      ]
+    },
+    {
+      "label": "Build a portfolio project",
+      "value": "portfolio",
+      "signals": [
+        "starter",
+        "template",
+        "clone",
+        "app",
+        "example",
+        "demo",
+        "project"
+      ]
+    }
+  ],
+  "levels": [
+    {
+      "label": "Beginner",
+      "value": "beginner",
+      "signals": [
+        "beginner",
+        "tutorial",
+        "simple",
+        "starter",
+        "intro",
+        "example",
+        "examples",
+        "guide"
+      ]
+    },
+    {
+      "label": "Intermediate",
+      "value": "intermediate",
+      "signals": [
+        "framework",
+        "api",
+        "plugin",
+        "integration",
+        "module",
+        "package"
+      ]
+    },
+    {
+      "label": "Advanced",
+      "value": "advanced",
+      "signals": [
+        "advanced",
+        "distributed",
+        "scalable",
+        "engine",
+        "compiler",
+        "kubernetes",
+        "performance",
+        "optimized"
+      ]
+    }
+  ],
+  "repo_kinds": [
+    {
+      "label": "Tutorial / educational repo",
+      "value": "tutorial",
+      "signals": [
+        "tutorial",
+        "guide",
+        "course",
+        "learn",
+        "learning",
+        "example",
+        "examples"
+      ]
+    },
+    {
+      "label": "Ready-to-use library or tool",
+      "value": "library_tool",
+      "signals": [
+        "library",
+        "tool",
+        "cli",
+        "package",
+        "npm",
+        "pip",
+        "install",
+        "usage"
+      ]
+    },
+    {
+      "label": "Full application",
+      "value": "full_app",
+      "signals": [
+        "app",
+        "application",
+        "platform",
+        "dashboard",
+        "server",
+        "client"
+      ]
+    },
+    {
+      "label": "Framework / infrastructure project",
+      "value": "framework_infra",
+      "signals": [
+        "framework",
+        "infrastructure",
+        "engine",
+        "scalable",
+        "docker",
+        "kubernetes"
+      ]
+    },
+    {
+      "label": "Research / dataset / benchmark",
+      "value": "research",
+      "signals": [
+        "research",
+        "paper",
+        "dataset",
+        "benchmark",
+        "model",
+        "experiment"
+      ]
+    }
+  ],
+  "complexities": [
+    {
+      "label": "Small and easy to understand",
+      "value": "small"
+    },
+    {
+      "label": "Medium-sized with real features",
+      "value": "medium"
+    },
+    {
+      "label": "Large real-world project",
+      "value": "large"
+    },
+    {
+      "label": "I do not care",
+      "value": "any"
+    }
+  ]
+}
