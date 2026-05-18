@@ -61,3 +61,22 @@ graph TD
     D -->|Reasoning Engine| E[Personalized Recommendations]
     E -->|Search Mode| F[Hybrid BM25 Results]
 ```
+
+
+
+
+scraper.py
+   ↓
+data.json
+
+process.py
+   ↓
+processed.json
+
+index_to_qdrant.py
+   ↓
+Qdrant collection: github_repos
+
+FastAPI backend
+   ↓
+searches Qdrant + BM25
