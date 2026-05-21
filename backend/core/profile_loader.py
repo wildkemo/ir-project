@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from repo_utils import is_github_repository, resolve_full_name
 from smart_profile_recommender_v2 import (
     DatasetOptionsBuilder,
     SmartProfileRecommender,
@@ -110,9 +111,12 @@ def _github_full_name(url: str) -> Optional[str]:
     return match.group(1) if match else None
 
 
-def normalize_profile_result(item: Dict[str, Any], rank: int) -> Dict[str, Any]:
+def normalize_profile_result(item: Dict[str, Any], rank: int, doc: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     url = item.get("url") or ""
-    full_name = item.get("full_name") or _github_full_name(url) or item.get("title")
+    full_name = item.get("full_name")
+    if doc:
+        full_name = resolve_full_name(doc) or full_name
+    full_name = full_name or _github_full_name(url) or item.get("title")
 
     return {
         "rank": rank,
@@ -147,10 +151,26 @@ def build_user_profile(payload: Dict[str, Any]) -> UserProfile:
 def recommend_for_profile(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     recommender = load_profile_recommender()
     profile = build_user_profile(payload)
+    target = payload.get("top_k", 10)
+    profile.top_k = min(len(recommender.docs), max(target * 10, 50))
+
     raw_results = recommender.recommend_for_profile(profile)
+    filtered: List[Dict[str, Any]] = []
+
+    for item in raw_results:
+        doc_id = item.get("doc_id")
+        if doc_id is None or doc_id >= len(recommender.docs):
+            continue
+        doc = recommender.docs[doc_id]
+        if not is_github_repository(doc):
+            continue
+        filtered.append((item, doc))
+        if len(filtered) >= target:
+            break
+
     return [
-        normalize_profile_result(item, rank)
-        for rank, item in enumerate(raw_results, start=1)
+        normalize_profile_result(item, rank, doc)
+        for rank, (item, doc) in enumerate(filtered, start=1)
     ]
 
 
@@ -158,8 +178,24 @@ def search_with_profile(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     recommender = load_profile_recommender()
     profile = build_user_profile(payload)
     query = payload["query"]
+    target = payload.get("top_k", 10)
+    profile.top_k = min(len(recommender.docs), max(target * 10, 50))
+
     raw_results = recommender.search_with_profile(query, profile)
+    filtered: List[Dict[str, Any]] = []
+
+    for item in raw_results:
+        doc_id = item.get("doc_id")
+        if doc_id is None or doc_id >= len(recommender.docs):
+            continue
+        doc = recommender.docs[doc_id]
+        if not is_github_repository(doc):
+            continue
+        filtered.append((item, doc))
+        if len(filtered) >= target:
+            break
+
     return [
-        normalize_profile_result(item, rank)
-        for rank, item in enumerate(raw_results, start=1)
+        normalize_profile_result(item, rank, doc)
+        for rank, (item, doc) in enumerate(filtered, start=1)
     ]

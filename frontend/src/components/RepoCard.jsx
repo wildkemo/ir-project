@@ -3,10 +3,12 @@ import { ExternalLink, GitFork, GitBranch, Star, AlertCircle, Sparkles, HelpCirc
 import ScoreBreakdown from './ScoreBreakdown';
 import { explainResult, getApiErrorMessage } from '../api/client';
 import { formatCount, formatScore } from '../utils/format';
+import { getRepoDisplayName } from '../utils/repoDisplay';
 
 export default function RepoCard({
   repo,
   searchQuery,
+  searchProfile,
   onSimilar,
   isSelected,
   recommendLoading,
@@ -16,7 +18,7 @@ export default function RepoCard({
   const [explainError, setExplainError] = useState(null);
 
   const handleExplain = async () => {
-    const identifier = repo?.full_name || repo?.title;
+    const identifier = getRepoDisplayName(repo);
     if (!searchQuery?.trim() || !identifier) return;
 
     if (explain && !explainError) {
@@ -31,6 +33,16 @@ export default function RepoCard({
       const data = await explainResult({
         query: searchQuery.trim(),
         repo_identifier: identifier,
+        profile: searchProfile
+          ? {
+              project_type: searchProfile.project_type ?? null,
+              language: searchProfile.language ?? null,
+              goal: searchProfile.goal ?? null,
+              level: searchProfile.level ?? null,
+              repo_kind: searchProfile.repo_kind ?? null,
+              complexity: searchProfile.complexity ?? null,
+            }
+          : undefined,
       });
       setExplain(data);
     } catch (err) {
@@ -40,7 +52,7 @@ export default function RepoCard({
       setExplainLoading(false);
     }
   };
-  const name = repo?.full_name || repo?.title || 'Unknown repository';
+  const name = getRepoDisplayName(repo);
   const description = repo?.description || 'No description available.';
   const topics = Array.isArray(repo?.topics) ? repo.topics : [];
   const url = repo?.url || '#';
@@ -91,7 +103,8 @@ export default function RepoCard({
 
       {topics.length > 0 && (
         <div className="repo-card__topics">
-          {topics.slice(0, 8).map((topic) => (
+          <span className="repo-card__topics-label">Tags</span>
+          {topics.slice(0, 6).map((topic) => (
             <span key={topic} className="topic-pill">
               {topic}
             </span>
@@ -136,12 +149,12 @@ export default function RepoCard({
                 <dd>{formatScore(explain.semantic_contribution)}</dd>
               </div>
               <div>
-                <dt>Phrase contribution</dt>
-                <dd>{formatScore(explain.phrase_contribution)}</dd>
-              </div>
-              <div>
-                <dt>Metadata contribution</dt>
-                <dd>{formatScore(explain.metadata_contribution)}</dd>
+                <dt>Profile contribution</dt>
+                <dd>
+                  {formatScore(
+                    explain.profile_contribution ?? explain.metadata_contribution,
+                  )}
+                </dd>
               </div>
             </dl>
           )}

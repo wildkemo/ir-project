@@ -6,7 +6,9 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dotenv import load_dotenv
 
+load_dotenv()
 
 class FastGitHubScraper:
     def __init__(

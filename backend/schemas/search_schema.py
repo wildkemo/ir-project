@@ -1,5 +1,15 @@
 from typing import Optional
+
 from pydantic import BaseModel, Field
+
+
+class ProfileContext(BaseModel):
+    project_type: Optional[str] = None
+    language: Optional[str] = None
+    goal: Optional[str] = None
+    level: Optional[str] = None
+    repo_kind: Optional[str] = None
+    complexity: Optional[str] = None
 
 
 class SearchRequest(BaseModel):
@@ -12,6 +22,8 @@ class SearchRequest(BaseModel):
     min_stars: Optional[int] = Field(default=None, ge=0)
     topic: Optional[str] = None
 
+    profile: Optional[ProfileContext] = None
+
 
 class RecommendRequest(BaseModel):
     repo_identifier: str = Field(..., min_length=1)
@@ -22,3 +34,4 @@ class RecommendRequest(BaseModel):
 class ExplainRequest(BaseModel):
     query: str = Field(..., min_length=1)
     repo_identifier: str = Field(..., min_length=1)
+    profile: Optional[ProfileContext] = None

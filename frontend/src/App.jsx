@@ -11,6 +11,7 @@ import {
 } from './api/client';
 import { useTheme } from './hooks/useTheme';
 import { loadStoredProfile, saveStoredProfile, clearStoredProfile } from './utils/profileStorage';
+import { filterReposOnly, getRepoDisplayName } from './utils/repoDisplay';
 import SearchBar from './components/SearchBar';
 import Filters from './components/Filters';
 import RepoCard from './components/RepoCard';
@@ -68,7 +69,7 @@ export default function App() {
 
     try {
       const data = await recommendFromProfile({ ...answers, top_k: PROFILE_TOP_K });
-      setProfileResults(Array.isArray(data?.results) ? data.results : []);
+        setProfileResults(filterReposOnly(data?.results));
       setProfileAnswers(answers);
       setProfileComplete(true);
       setShowProfileWizard(false);
@@ -102,16 +103,31 @@ export default function App() {
   }, [runProfileRecommend]);
 
   const buildSearchPayload = useCallback(
-    (searchQuery) => ({
-      query: searchQuery.trim(),
-      top_k: filters.top_k ?? 10,
-      candidate_pool: 200,
-      language: filters.language || null,
-      license_name: filters.license_name || null,
-      min_stars: filters.min_stars ?? null,
-      topic: filters.topic || null,
-    }),
-    [filters],
+    (searchQuery) => {
+      const payload = {
+        query: searchQuery.trim(),
+        top_k: filters.top_k ?? 10,
+        candidate_pool: 200,
+        language: filters.language || null,
+        license_name: filters.license_name || null,
+        min_stars: filters.min_stars ?? null,
+        topic: filters.topic || null,
+      };
+
+      if (profileAnswers) {
+        payload.profile = {
+          project_type: profileAnswers.project_type ?? null,
+          language: profileAnswers.language ?? null,
+          goal: profileAnswers.goal ?? null,
+          level: profileAnswers.level ?? null,
+          repo_kind: profileAnswers.repo_kind ?? null,
+          complexity: profileAnswers.complexity ?? null,
+        };
+      }
+
+      return payload;
+    },
+    [filters, profileAnswers],
   );
 
   const runSearch = useCallback(
@@ -129,8 +145,9 @@ export default function App() {
 
       try {
         const data = await searchRepos(buildSearchPayload(q));
-        setResults(Array.isArray(data?.results) ? data.results : []);
-        setResultCount(data?.count ?? 0);
+        const repos = filterReposOnly(data?.results);
+        setResults(repos);
+        setResultCount(repos.length);
       } catch (err) {
         setResults([]);
         setResultCount(0);
@@ -175,7 +192,7 @@ export default function App() {
   };
 
   const handleSimilar = async (repo) => {
-    const identifier = repo?.full_name || repo?.title;
+    const identifier = getRepoDisplayName(repo);
     if (!identifier) return;
 
     setSelectedRepo(repo);
@@ -251,7 +268,7 @@ export default function App() {
           </span>
           <span className="hero__badge hero__badge--muted">
             <Sparkles size={14} aria-hidden />
-            BM25 + Semantic search
+            Hybrid BM25 + semantic search
           </span>
           <span className="hero__badge hero__badge--muted">
             <Layers size={14} aria-hidden />
@@ -312,11 +329,11 @@ export default function App() {
             />
           )}
 
-          {profileLoading && profileComplete && (
+          {profileLoading && profileComplete && !hasSearched && (
             <LoadingState message="Refreshing your recommendations…" />
           )}
 
-          {profileComplete && profileResults.length > 0 && (
+          {profileComplete && profileResults.length > 0 && !hasSearched && (
             <section className="profile-results" aria-labelledby="profile-results-title">
               <header className="profile-results__header">
                 <div>
@@ -355,7 +372,11 @@ export default function App() {
             </section>
           )}
 
-          {profileComplete && !showProfileWizard && profileResults.length === 0 && !profileLoading && (
+          {profileComplete &&
+            !showProfileWizard &&
+            profileResults.length === 0 &&
+            !profileLoading &&
+            !hasSearched && (
             <EmptyState
               variant="noResults"
               message="No profile matches found. Try retaking the quiz with different preferences."
@@ -384,6 +405,7 @@ export default function App() {
                         key={repo?.id || repo?.full_name || repo?.rank}
                         repo={repo}
                         searchQuery={query}
+                        searchProfile={profileAnswers}
                         onSimilar={handleSimilar}
                         isSelected={
                           selectedRepo?.full_name === repo?.full_name ||

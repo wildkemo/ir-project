@@ -1,5 +1,6 @@
 import { ExternalLink, X, Star, GitFork, Sparkles } from 'lucide-react';
 import { formatCount, formatScore } from '../utils/format';
+import { filterReposOnly, getRepoDisplayName } from '../utils/repoDisplay';
 import LoadingState from './LoadingState';
 import EmptyState from './EmptyState';
 
@@ -12,8 +13,8 @@ export default function RecommendationPanel({
 }) {
   if (!selectedRepo && !loading) return null;
 
-  const repoName = selectedRepo?.full_name || selectedRepo?.title || 'Repository';
-  const results = recommendations?.results ?? [];
+  const repoName = getRepoDisplayName(selectedRepo);
+  const results = filterReposOnly(recommendations?.results);
 
   return (
     <aside className="recommend-panel" aria-label="Similar projects">
@@ -55,7 +56,7 @@ export default function RecommendationPanel({
                     {formatScore(repo?.similarity)}
                   </span>
                 </div>
-                <h3>{repo?.full_name || repo?.title || 'Unknown'}</h3>
+                <h3>{getRepoDisplayName(repo)}</h3>
                 <p>{repo?.description || 'No description.'}</p>
                 <div className="recommend-card__meta">
                   {repo?.language && <span className="badge badge--lang">{repo.language}</span>}

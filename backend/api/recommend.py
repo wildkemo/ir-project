@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from backend.core.engine_loader import load_engine
+from backend.core.semantic_loader import load_semantic_hybrid
 from backend.schemas.search_schema import RecommendRequest
 
 
@@ -8,11 +8,12 @@ router = APIRouter(prefix="/recommend", tags=["Recommendation"])
 
 
 @router.post("/")
-def recommend_repositories(request: RecommendRequest):
+def recommend_similar_repositories(request: RecommendRequest):
+    """Similar repos via semantic embeddings (semantic_hybrid_recommender)."""
     try:
-        engine = load_engine()
+        hybrid = load_semantic_hybrid()
 
-        results = engine.recommend_similar(
+        results = hybrid.recommend_similar(
             repo_identifier=request.repo_identifier,
             top_k=request.top_k,
             same_language_only=request.same_language_only,
@@ -21,6 +22,7 @@ def recommend_repositories(request: RecommendRequest):
         return {
             "repo_identifier": request.repo_identifier,
             "count": len(results),
+            "engine": "semantic_hybrid_recommender",
             "results": results,
         }
 

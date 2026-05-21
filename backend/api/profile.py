@@ -26,6 +26,7 @@ def profile_recommend(request: ProfileRecommendRequest):
         results = recommend_for_profile(payload)
         return {
             "count": len(results),
+            "engine": "smart_profile_recommender_v2",
             "profile": {
                 k: v
                 for k, v in payload.items()

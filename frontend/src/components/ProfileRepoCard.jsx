@@ -1,5 +1,6 @@
 import { ExternalLink, GitFork, Star, Sparkles } from 'lucide-react';
 import { formatCount, formatScore } from '../utils/format';
+import { getRepoDisplayName } from '../utils/repoDisplay';
 
 export default function ProfileRepoCard({
   repo,
@@ -7,7 +8,7 @@ export default function ProfileRepoCard({
   isSelected,
   recommendLoading,
 }) {
-  const name = repo?.full_name || repo?.title || 'Unknown repository';
+  const name = getRepoDisplayName(repo);
   const description = repo?.description || 'No description available.';
   const topics = Array.isArray(repo?.topics) ? repo.topics : [];
   const url = repo?.url || '#';

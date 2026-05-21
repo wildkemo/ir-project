@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
-from backend.core.engine_loader import load_engine
+from backend.core.semantic_loader import load_semantic_hybrid
+from repo_utils import is_github_repository, repository_docs
 
 
 router = APIRouter(prefix="/repos", tags=["Repositories"])
@@ -9,13 +10,13 @@ router = APIRouter(prefix="/repos", tags=["Repositories"])
 @router.get("/")
 def list_repositories(limit: int = 20):
     try:
-        engine = load_engine()
-
+        hybrid = load_semantic_hybrid()
         limit = max(1, min(limit, 100))
 
+        repos = repository_docs(hybrid.docs)
         return {
-            "count": min(limit, len(engine.repos)),
-            "results": engine.repos[:limit],
+            "count": min(limit, len(repos)),
+            "results": repos[:limit],
         }
 
     except Exception as e:
@@ -25,13 +26,13 @@ def list_repositories(limit: int = 20):
 @router.get("/filters/options")
 def get_filter_options():
     try:
-        engine = load_engine()
+        hybrid = load_semantic_hybrid()
 
         languages = set()
         licenses = set()
         topics = set()
 
-        for repo in engine.repos:
+        for repo in repository_docs(hybrid.docs):
             if repo.get("language"):
                 languages.add(repo["language"])
 
@@ -54,14 +55,17 @@ def get_filter_options():
 @router.get("/details/{repo_identifier:path}")
 def get_repository(repo_identifier: str):
     try:
-        engine = load_engine()
-
-        idx = engine.find_repo_index(repo_identifier)
+        hybrid = load_semantic_hybrid()
+        idx = hybrid.find_repo_index(repo_identifier)
 
         if idx is None:
             raise HTTPException(status_code=404, detail="Repository not found")
 
-        return engine.repos[idx]
+        doc = hybrid.docs[idx]
+        if not is_github_repository(doc):
+            raise HTTPException(status_code=404, detail="Not a repository page")
+
+        return doc
 
     except HTTPException:
         raise

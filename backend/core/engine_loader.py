@@ -1,27 +1,10 @@
-import os
-from ir_engine import HybridSearchEngine
+"""
+Search & similar-repo endpoints use semantic_hybrid_recommender (BM25 + embeddings).
+Profile quiz recommendations use smart_profile_recommender_v2 via profile_loader.
+"""
 
+from backend.core.semantic_loader import load_semantic_hybrid
 
-engine = None
-
-
+# Backward-compatible alias for repos/search/recommend routes
 def load_engine():
-    global engine
-
-    if engine is not None:
-        return engine
-
-    engine = HybridSearchEngine(
-        processed_file="processed.json",
-        index_dir="search_index",
-        embedding_model_name="sentence-transformers/all-MiniLM-L6-v2",
-    )
-
-    embeddings_path = os.path.join("search_index", "embeddings.npy")
-
-    if os.path.exists(embeddings_path):
-        engine.load_index()
-    else:
-        engine.build_index(save=True)
-
-    return engine
+    return load_semantic_hybrid()

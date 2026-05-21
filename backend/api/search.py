@@ -1,6 +1,10 @@
 from fastapi import APIRouter, HTTPException
 
-from backend.core.engine_loader import load_engine
+from backend.core.semantic_loader import (
+    hybrid_search,
+    load_semantic_hybrid,
+    profile_from_payload,
+)
 from backend.schemas.search_schema import SearchRequest, ExplainRequest
 
 
@@ -10,21 +14,13 @@ router = APIRouter(prefix="/search", tags=["Search"])
 @router.post("/")
 def search_repositories(request: SearchRequest):
     try:
-        engine = load_engine()
-
-        results = engine.search(
-            query=request.query,
-            top_k=request.top_k,
-            candidate_pool=request.candidate_pool,
-            language=request.language,
-            license_name=request.license_name,
-            min_stars=request.min_stars,
-            topic=request.topic,
-        )
+        payload = request.model_dump()
+        results = hybrid_search(payload)
 
         return {
             "query": request.query,
             "count": len(results),
+            "engine": "semantic_hybrid_recommender",
             "results": results,
         }
 
@@ -35,14 +31,16 @@ def search_repositories(request: SearchRequest):
 @router.post("/explain")
 def explain_result(request: ExplainRequest):
     try:
-        engine = load_engine()
-
-        explanation = engine.explain_result(
-            query=request.query,
-            repo_identifier=request.repo_identifier,
+        hybrid = load_semantic_hybrid()
+        profile = profile_from_payload(
+            request.profile.model_dump() if request.profile else None
         )
 
-        return explanation
+        return hybrid.explain_result(
+            query=request.query,
+            repo_identifier=request.repo_identifier,
+            profile=profile,
+        )
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

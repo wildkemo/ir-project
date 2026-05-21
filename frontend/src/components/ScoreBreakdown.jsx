@@ -1,10 +1,9 @@
 import { formatScore } from '../utils/format';
 
 const SCORES = [
-  { key: 'bm25_score', label: 'BM25' },
+  { key: 'bm25_score', label: 'BM25 (lexical)' },
   { key: 'semantic_score', label: 'Semantic' },
-  { key: 'phrase_score', label: 'Phrase' },
-  { key: 'metadata_score', label: 'Metadata' },
+  { key: 'metadata_score', label: 'Profile match' },
 ];
 
 export default function ScoreBreakdown({ repo }) {

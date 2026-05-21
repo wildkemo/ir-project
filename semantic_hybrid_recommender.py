@@ -45,6 +45,7 @@ except ImportError:
 
 # Import your current recommender code.
 # Make sure smart_profile_recommender_v2.py is in the same folder.
+from repo_utils import is_github_repository, resolve_full_name
 from smart_profile_recommender_v2 import (
     UserProfile,
     DatasetOptionsBuilder,
@@ -242,6 +243,9 @@ class SemanticHybridRecommender:
         results = []
 
         for doc_id, doc in enumerate(self.docs):
+            if not is_github_repository(doc):
+                continue
+
             # Existing lexical/query score from v2
             lexical_query_score = self.base.query_relevance_score(query, doc)
 
@@ -283,6 +287,7 @@ class SemanticHybridRecommender:
                 "mode": "hybrid_semantic_search",
                 "doc_id": doc_id,
                 "title": doc.get("title", "Untitled"),
+                "full_name": resolve_full_name(doc),
                 "url": doc.get("url", ""),
                 "description": doc.get("description", ""),
                 "language": doc.get("language"),
@@ -347,6 +352,204 @@ class SemanticHybridRecommender:
             reasons.append("Recommended by hybrid semantic ranking")
 
         return reasons[:5]
+
+    # ============================================================
+    # Web API: query search (BM25 + semantic + optional profile)
+    # ============================================================
+
+    def _passes_filters(
+        self,
+        doc: Dict[str, Any],
+        language: Optional[str] = None,
+        license_name: Optional[str] = None,
+        min_stars: Optional[int] = None,
+        topic: Optional[str] = None,
+    ) -> bool:
+        if language and str(doc.get("language") or "").lower() != language.lower():
+            return False
+        if license_name and str(doc.get("license") or "").lower() != license_name.lower():
+            return False
+        if min_stars is not None and int(doc.get("stars") or 0) < min_stars:
+            return False
+        if topic:
+            topic_norm = topic.lower().replace(" ", "-")
+            doc_topics = {str(t).lower().replace(" ", "-") for t in doc.get("topics", []) or []}
+            if topic_norm not in doc_topics and topic_norm not in str(doc.get("description") or "").lower():
+                return False
+        return True
+
+    def find_repo_index(self, repo_identifier: str) -> Optional[int]:
+        target = repo_identifier.lower().strip()
+
+        for idx, doc in enumerate(self.docs):
+            if not is_github_repository(doc):
+                continue
+
+            candidates = [
+                resolve_full_name(doc),
+                doc.get("full_name"),
+                doc.get("url"),
+                doc.get("title"),
+                doc.get("name"),
+                doc.get("repo"),
+            ]
+            for value in candidates:
+                if value and str(value).lower().strip() == target:
+                    return idx
+
+        for idx, doc in enumerate(self.docs):
+            if not is_github_repository(doc):
+                continue
+
+            full_name = str(resolve_full_name(doc) or "").lower()
+            title = str(doc.get("title") or doc.get("name") or "").lower()
+            url = str(doc.get("url") or "").lower()
+            if target in full_name or target in title or target in url:
+                return idx
+
+        return None
+
+    def search(
+        self,
+        query: str,
+        top_k: int = 10,
+        profile: Optional[UserProfile] = None,
+        language: Optional[str] = None,
+        license_name: Optional[str] = None,
+        min_stars: Optional[int] = None,
+        topic: Optional[str] = None,
+        candidate_pool: int = 200,
+    ) -> List[Dict[str, Any]]:
+        """
+        Hybrid search for the website: BM25-style lexical + semantic embeddings.
+        Uses profile weights when a profile is provided; otherwise lexical + semantic only.
+        """
+        profile = profile or UserProfile(top_k=top_k)
+        profile.top_k = top_k
+
+        ranked = self.search_with_profile_and_semantics(
+            query=query,
+            profile=profile,
+            top_k=len(self.docs),
+        )
+
+        filtered = [
+            item
+            for item in ranked
+            if self._passes_filters(
+                self.docs[item["doc_id"]],
+                language=language,
+                license_name=license_name,
+                min_stars=min_stars,
+                topic=topic,
+            )
+        ]
+
+        pool = min(candidate_pool, len(filtered))
+        return filtered[:pool][:top_k]
+
+    def explain_result(
+        self,
+        query: str,
+        repo_identifier: str,
+        profile: Optional[UserProfile] = None,
+    ) -> Dict[str, Any]:
+        profile = profile or UserProfile()
+        profile.expand_topics_from_project_type()
+
+        idx = self.find_repo_index(repo_identifier)
+        if idx is None:
+            raise ValueError(f"Repository not found: {repo_identifier}")
+
+        doc = self.docs[idx]
+        lexical = self.base.query_relevance_score(query, doc)
+        semantic_query = f"User search query: {query}\nUser profile: {self._profile_text(profile)}"
+        semantic = float(self.semantic_scores(semantic_query)[idx])
+
+        project_type = self.base.project_type_score(profile, doc)
+        language_s = self.base.language_score(profile, doc)
+        goal = self.base.signal_score(profile.goal, GOAL_OPTIONS, doc)
+        level = self.base.signal_score(profile.level, LEVEL_OPTIONS, doc)
+        repo_kind = self.base.signal_score(profile.repo_kind, REPO_KIND_OPTIONS, doc)
+        complexity = self.base.complexity_score(profile, doc)
+
+        profile_match = (
+            0.30 * project_type
+            + 0.25 * language_s
+            + 0.20 * goal
+            + 0.10 * level
+            + 0.10 * repo_kind
+            + 0.05 * complexity
+        )
+
+        final_score = 0.55 * lexical + 0.30 * semantic + 0.15 * profile_match
+        full_name = doc.get("full_name") or doc.get("title")
+
+        return {
+            "query": query,
+            "repo": full_name,
+            "final_score": round(final_score, 6),
+            "bm25_contribution": round(0.55 * lexical, 6),
+            "semantic_contribution": round(0.30 * semantic, 6),
+            "profile_contribution": round(0.15 * profile_match, 6),
+            "raw_parts": {
+                "bm25_score": round(lexical, 6),
+                "semantic_score": round(semantic, 6),
+                "profile_score": round(profile_match, 6),
+            },
+        }
+
+    def recommend_similar(
+        self,
+        repo_identifier: str,
+        top_k: int = 10,
+        same_language_only: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """Similar repositories via embedding cosine similarity."""
+        idx = self.find_repo_index(repo_identifier)
+        if idx is None:
+            raise ValueError(f"Repository not found: {repo_identifier}")
+
+        target_repo = self.docs[idx]
+        target_lang = str(target_repo.get("language") or "").lower()
+        vector = self.repo_embeddings[idx]
+        similarities = np.dot(self.repo_embeddings, vector)
+        similarities[idx] = -1.0
+
+        order = np.argsort(similarities)[::-1].tolist()
+        results = []
+        rank = 1
+
+        for doc_idx in order:
+            if len(results) >= top_k:
+                break
+
+            repo = self.docs[doc_idx]
+            if not is_github_repository(repo):
+                continue
+
+            if same_language_only:
+                if str(repo.get("language") or "").lower() != target_lang:
+                    continue
+
+            url = repo.get("url") or ""
+            full_name = resolve_full_name(repo)
+
+            results.append({
+                "rank": rank,
+                "similarity": round(float(similarities[doc_idx]), 6),
+                "title": repo.get("title") or repo.get("name") or repo.get("repo"),
+                "full_name": full_name,
+                "url": url,
+                "description": repo.get("description"),
+                "language": repo.get("language"),
+                "topics": repo.get("topics", []),
+                "stars": repo.get("stars", 0),
+                "forks": repo.get("forks", 0),
+            })
+            rank += 1
+
+        return results
 
 
 # ============================================================

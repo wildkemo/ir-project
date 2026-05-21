@@ -783,8 +783,18 @@
 .repo-card__topics {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.35rem;
   margin-bottom: 0.85rem;
+}
+
+.repo-card__topics-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-faint);
+  margin-right: 0.15rem;
 }
 
 .topic-pill {
