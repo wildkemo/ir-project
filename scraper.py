@@ -153,7 +153,7 @@ class FastGitHubScraper:
 
             print(f"  -> {len(repos)} repos found")
 
-            if len(all_repos) > 1000:
+            if len(all_repos) > 2000:
                 break
 
         return list(all_repos)

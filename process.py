@@ -263,7 +263,7 @@ def normalize_item(item):
 # MAIN PIPELINE
 # =========================
 def process_data(
-    input_file="data.json",
+    input_file="new_data.json",
     output_file="processed.json"
 ):
     with open(input_file, "r", encoding="utf-8") as f:

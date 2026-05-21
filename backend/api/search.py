@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException
 
 from backend.core.semantic_loader import (
+    explain_result,
     hybrid_search,
-    load_semantic_hybrid,
     profile_from_payload,
 )
 from backend.schemas.search_schema import SearchRequest, ExplainRequest
@@ -29,14 +29,13 @@ def search_repositories(request: SearchRequest):
 
 
 @router.post("/explain")
-def explain_result(request: ExplainRequest):
+def explain_search_result(request: ExplainRequest):
     try:
-        hybrid = load_semantic_hybrid()
         profile = profile_from_payload(
             request.profile.model_dump() if request.profile else None
         )
 
-        return hybrid.explain_result(
+        return explain_result(
             query=request.query,
             repo_identifier=request.repo_identifier,
             profile=profile,
