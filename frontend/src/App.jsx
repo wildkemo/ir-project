@@ -1,17 +1,25 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ScanSearch, Zap } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ScanSearch, Zap, Sparkles, Layers, RotateCcw } from 'lucide-react';
 import {
   searchRepos,
   recommendRepos,
   getFilterOptions,
+  checkHealth,
+  recommendFromProfile,
   getApiErrorMessage,
+  API_BASE_URL,
 } from './api/client';
+import { useTheme } from './hooks/useTheme';
+import { loadStoredProfile, saveStoredProfile, clearStoredProfile } from './utils/profileStorage';
 import SearchBar from './components/SearchBar';
 import Filters from './components/Filters';
 import RepoCard from './components/RepoCard';
+import ProfileRepoCard from './components/ProfileRepoCard';
+import ProfileWizard from './components/ProfileWizard';
 import RecommendationPanel from './components/RecommendationPanel';
 import LoadingState from './components/LoadingState';
 import EmptyState from './components/EmptyState';
+import ThemeToggle from './components/ThemeToggle';
 import './App.css';
 
 const DEFAULT_FILTERS = {
@@ -22,7 +30,10 @@ const DEFAULT_FILTERS = {
   topic: null,
 };
 
+const PROFILE_TOP_K = 10;
+
 export default function App() {
+  const { theme, toggleTheme } = useTheme();
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [filterOptions, setFilterOptions] = useState({
@@ -30,6 +41,13 @@ export default function App() {
     licenses: [],
     topics: [],
   });
+
+  const [profileAnswers, setProfileAnswers] = useState(() => loadStoredProfile());
+  const [profileComplete, setProfileComplete] = useState(false);
+  const [showProfileWizard, setShowProfileWizard] = useState(() => !loadStoredProfile());
+  const [profileResults, setProfileResults] = useState([]);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState(null);
 
   const [results, setResults] = useState([]);
   const [resultCount, setResultCount] = useState(0);
@@ -41,14 +59,47 @@ export default function App() {
   const [recommendations, setRecommendations] = useState(null);
   const [recommendLoading, setRecommendLoading] = useState(false);
   const [recommendError, setRecommendError] = useState(null);
+  const [apiOnline, setApiOnline] = useState(null);
+  const didRestoreProfile = useRef(false);
+
+  const runProfileRecommend = useCallback(async (answers) => {
+    setProfileLoading(true);
+    setProfileError(null);
+
+    try {
+      const data = await recommendFromProfile({ ...answers, top_k: PROFILE_TOP_K });
+      setProfileResults(Array.isArray(data?.results) ? data.results : []);
+      setProfileAnswers(answers);
+      setProfileComplete(true);
+      setShowProfileWizard(false);
+      saveStoredProfile(answers);
+    } catch (err) {
+      setProfileResults([]);
+      setProfileError(getApiErrorMessage(err));
+    } finally {
+      setProfileLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
+    checkHealth()
+      .then(() => setApiOnline(true))
+      .catch(() => setApiOnline(false));
+
     getFilterOptions()
       .then(setFilterOptions)
-      .catch(() => {
-        /* filters still work manually if options fail */
-      });
+      .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (didRestoreProfile.current) return;
+    const stored = loadStoredProfile();
+    if (!stored) return;
+    didRestoreProfile.current = true;
+    queueMicrotask(() => {
+      runProfileRecommend(stored);
+    });
+  }, [runProfileRecommend]);
 
   const buildSearchPayload = useCallback(
     (searchQuery) => ({
@@ -91,6 +142,19 @@ export default function App() {
     [query, buildSearchPayload],
   );
 
+  const handleProfileSubmit = (answers) => {
+    runProfileRecommend(answers);
+  };
+
+  const handleRetakeProfile = () => {
+    clearStoredProfile();
+    setProfileComplete(false);
+    setShowProfileWizard(true);
+    setProfileResults([]);
+    setProfileError(null);
+    setProfileAnswers(null);
+  };
+
   const handleExampleClick = (example) => {
     setQuery(example);
     runSearch(example);
@@ -102,6 +166,12 @@ export default function App() {
 
   const handleResetFilters = () => {
     setFilters(DEFAULT_FILTERS);
+  };
+
+  const handleApplyFilters = () => {
+    if (hasSearched && query.trim()) {
+      runSearch(query);
+    }
   };
 
   const handleSimilar = async (repo) => {
@@ -138,23 +208,55 @@ export default function App() {
 
   return (
     <div className="app">
+      <div className="top-bar">
+        <div className="top-bar__brand-mini">
+          <ScanSearch size={18} aria-hidden />
+          Repo<span>Mind</span>
+        </div>
+        <div className="top-bar__actions">
+          {apiOnline === true && (
+            <span className="status-pill status-pill--online" title="API connected">
+              <span className="status-pill__dot" aria-hidden />
+              Live
+            </span>
+          )}
+          {apiOnline === false && (
+            <span className="status-pill status-pill--offline" title="API offline">
+              <span className="status-pill__dot" aria-hidden />
+              Offline
+            </span>
+          )}
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
+        </div>
+      </div>
+
       <header className="hero">
         <div className="hero__brand">
           <div className="hero__logo" aria-hidden>
-            <ScanSearch size={28} />
+            <ScanSearch size={32} />
           </div>
           <div>
             <h1 className="hero__title">
-              Open<span className="hero__accent">Seek</span>
+              Repo<span className="hero__accent">Mind</span>
             </h1>
             <p className="hero__subtitle">
-              Hybrid search and recommendation engine for open-source GitHub projects
+              Get personalized repo picks, then search the full hybrid engine anytime.
             </p>
           </div>
         </div>
-        <div className="hero__badge">
-          <Zap size={14} aria-hidden />
-          BM25 + Semantic + Phrase + Metadata
+        <div className="hero__badges">
+          <span className="hero__badge">
+            <Zap size={14} aria-hidden />
+            Profile recommendations
+          </span>
+          <span className="hero__badge hero__badge--muted">
+            <Sparkles size={14} aria-hidden />
+            BM25 + Semantic search
+          </span>
+          <span className="hero__badge hero__badge--muted">
+            <Layers size={14} aria-hidden />
+            Similar repos
+          </span>
         </div>
       </header>
 
@@ -166,14 +268,32 @@ export default function App() {
           onExampleClick={handleExampleClick}
           disabled={searchLoading}
         />
+      </div>
+
+      <div className="filters-bar">
         <Filters
           filters={filters}
           filterOptions={filterOptions}
           onChange={handleFilterChange}
           onReset={handleResetFilters}
+          onApply={handleApplyFilters}
+          showApply={hasSearched}
           disabled={searchLoading}
         />
       </div>
+
+      {apiOnline === false && (
+        <div className="alert alert--error" role="alert">
+          Backend is not reachable at {API_BASE_URL}. Run:{' '}
+          <code>uvicorn backend.main:app --reload --port 8000</code>
+        </div>
+      )}
+
+      {profileError && (
+        <div className="alert alert--error" role="alert">
+          {profileError}
+        </div>
+      )}
 
       {searchError && (
         <div className="alert alert--error" role="alert">
@@ -183,34 +303,103 @@ export default function App() {
 
       <main className={`main-layout ${showPanel ? 'main-layout--with-panel' : ''}`}>
         <section className="results-section" aria-live="polite">
-          {searchLoading && <LoadingState />}
-
-          {!searchLoading && !hasSearched && <EmptyState variant="initial" />}
-
-          {!searchLoading && hasSearched && !searchError && results.length === 0 && (
-            <EmptyState variant="noResults" />
+          {showProfileWizard && !profileComplete && (
+            <ProfileWizard
+              initialAnswers={profileAnswers}
+              onSubmit={handleProfileSubmit}
+              loading={profileLoading}
+              disabled={profileLoading}
+            />
           )}
 
-          {!searchLoading && results.length > 0 && (
-            <>
-              <p className="results-summary">
-                Found <strong>{resultCount}</strong> repositories for &ldquo;{query}&rdquo;
-              </p>
+          {profileLoading && profileComplete && (
+            <LoadingState message="Refreshing your recommendations…" />
+          )}
+
+          {profileComplete && profileResults.length > 0 && (
+            <section className="profile-results" aria-labelledby="profile-results-title">
+              <header className="profile-results__header">
+                <div>
+                  <h2 id="profile-results-title">
+                    Your top {profileResults.length} recommendation
+                    {profileResults.length === 1 ? '' : 's'}
+                  </h2>
+                  <p className="profile-results__subtitle">
+                    Up to {PROFILE_TOP_K} repos ranked by your profile — project type, language,
+                    goals, and more.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  onClick={handleRetakeProfile}
+                >
+                  <RotateCcw size={14} aria-hidden />
+                  Retake quiz
+                </button>
+              </header>
               <div className="results-grid">
-                {results.map((repo) => (
-                  <RepoCard
-                    key={repo?.id || repo?.full_name || repo?.rank}
+                {profileResults.map((repo) => (
+                  <ProfileRepoCard
+                    key={`profile-${repo?.doc_id ?? repo?.rank}-${repo?.url}`}
                     repo={repo}
                     onSimilar={handleSimilar}
                     isSelected={
                       selectedRepo?.full_name === repo?.full_name ||
-                      selectedRepo?.id === repo?.id
+                      selectedRepo?.url === repo?.url
                     }
                     recommendLoading={recommendLoading}
                   />
                 ))}
               </div>
-            </>
+            </section>
+          )}
+
+          {profileComplete && !showProfileWizard && profileResults.length === 0 && !profileLoading && (
+            <EmptyState
+              variant="noResults"
+              message="No profile matches found. Try retaking the quiz with different preferences."
+            />
+          )}
+
+          {hasSearched && (
+            <section className="search-results" aria-labelledby="search-results-title">
+              <h2 id="search-results-title" className="section-divider__title">
+                Search results
+              </h2>
+              {searchLoading && <LoadingState />}
+
+              {!searchLoading && !searchError && results.length === 0 && (
+                <EmptyState variant="noResults" />
+              )}
+
+              {!searchLoading && results.length > 0 && (
+                <>
+                  <p className="results-summary">
+                    Found <strong>{resultCount}</strong> repositories for &ldquo;{query}&rdquo;
+                  </p>
+                  <div className="results-grid">
+                    {results.map((repo) => (
+                      <RepoCard
+                        key={repo?.id || repo?.full_name || repo?.rank}
+                        repo={repo}
+                        searchQuery={query}
+                        onSimilar={handleSimilar}
+                        isSelected={
+                          selectedRepo?.full_name === repo?.full_name ||
+                          selectedRepo?.id === repo?.id
+                        }
+                        recommendLoading={recommendLoading}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </section>
+          )}
+
+          {!profileComplete && !showProfileWizard && !hasSearched && !profileLoading && (
+            <EmptyState variant="initial" />
           )}
         </section>
 
@@ -226,7 +415,9 @@ export default function App() {
       </main>
 
       <footer className="footer">
-        <p>OpenSeek — Information Retrieval project · CS313</p>
+        <p>
+          <strong>OpenSeek</strong> — Information Retrieval · CS313
+        </p>
       </footer>
     </div>
   );

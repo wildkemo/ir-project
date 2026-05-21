@@ -7,6 +7,8 @@ export default function Filters({
   filterOptions,
   onChange,
   onReset,
+  onApply,
+  showApply,
   disabled,
 }) {
   const { language, license_name, min_stars, top_k, topic } = filters;
@@ -104,15 +106,27 @@ export default function Filters({
           <span className="filter-field__spacer" aria-hidden>
             &nbsp;
           </span>
-          <button
-            type="button"
-            className="btn btn--ghost"
-            onClick={onReset}
-            disabled={disabled}
-          >
-            <RotateCcw size={16} aria-hidden />
-            Reset
-          </button>
+          <div className="filters__actions">
+            {showApply && (
+              <button
+                type="button"
+                className="btn btn--secondary"
+                onClick={onApply}
+                disabled={disabled}
+              >
+                Apply filters
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={onReset}
+              disabled={disabled}
+            >
+              <RotateCcw size={16} aria-hidden />
+              Reset
+            </button>
+          </div>
         </div>
       </div>
     </div>

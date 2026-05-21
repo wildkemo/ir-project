@@ -1,19 +1,20 @@
 import axios from 'axios';
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_URL?.replace(/\/$/, '') || 'http://127.0.0.1:8000';
+  import.meta.env.VITE_API_URL?.replace(/\/$/, '') ||
+  (import.meta.env.DEV ? '/api' : 'http://127.0.0.1:8000');
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 60000,
+  timeout: 120000,
 });
 
 export function getApiErrorMessage(error) {
   if (!error) return 'An unexpected error occurred.';
 
   if (error.code === 'ERR_NETWORK' || !error.response) {
-    return `Cannot reach the API at ${API_BASE_URL}. Make sure the backend is running and CORS is enabled.`;
+    return `Cannot reach the API at ${API_BASE_URL}. Start the backend: uvicorn backend.main:app --reload --port 8000`;
   }
 
   const detail = error.response?.data?.detail;
@@ -28,8 +29,18 @@ export function getApiErrorMessage(error) {
   return error.response?.data?.message || error.message || 'Request failed.';
 }
 
+export async function checkHealth() {
+  const { data } = await api.get('/health');
+  return data;
+}
+
 export async function searchRepos(payload) {
   const { data } = await api.post('/search/', payload);
+  return data;
+}
+
+export async function explainResult(payload) {
+  const { data } = await api.post('/search/explain', payload);
   return data;
 }
 
@@ -40,6 +51,29 @@ export async function recommendRepos(payload) {
 
 export async function getFilterOptions() {
   const { data } = await api.get('/repos/filters/options');
+  return data;
+}
+
+export async function listRepos(limit = 20) {
+  const { data } = await api.get('/repos/', { params: { limit } });
+  return data;
+}
+
+export async function getRepoDetails(repoIdentifier) {
+  const { data } = await api.get(`/repos/details/${encodeURIComponent(repoIdentifier)}`);
+  return data;
+}
+
+export async function getProfileQuestions() {
+  const { data } = await api.get('/profile/questions');
+  return data;
+}
+
+export async function recommendFromProfile(profile) {
+  const { data } = await api.post('/profile/recommend', {
+    ...profile,
+    top_k: profile.top_k ?? 10,
+  });
   return data;
 }
 

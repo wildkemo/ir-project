@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.api.search import router as search_router
 from backend.api.recommend import router as recommend_router
 from backend.api.repos import router as repos_router
+from backend.api.profile import router as profile_router
 
 
 app = FastAPI(
@@ -46,3 +47,4 @@ def health_check():
 app.include_router(search_router)
 app.include_router(recommend_router)
 app.include_router(repos_router)
+app.include_router(profile_router)
