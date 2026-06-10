@@ -1,6 +1,17 @@
 import { useState } from 'react';
-import { ExternalLink, GitFork, GitBranch, Star, AlertCircle, Sparkles, HelpCircle } from 'lucide-react';
+import {
+  ExternalLink,
+  GitFork,
+  GitBranch,
+  Star,
+  AlertCircle,
+  Sparkles,
+  HelpCircle,
+} from 'lucide-react';
+
 import ScoreBreakdown from './ScoreBreakdown';
+import ProjectExplainButton from './ProjectExplainButton';
+
 import { explainResult, getApiErrorMessage } from '../api/client';
 import { formatCount, formatScore } from '../utils/format';
 import { getRepoDisplayName } from '../utils/repoDisplay';
@@ -19,6 +30,7 @@ export default function RepoCard({
 
   const handleExplain = async () => {
     const identifier = getRepoDisplayName(repo);
+
     if (!searchQuery?.trim() || !identifier) return;
 
     if (explain && !explainError) {
@@ -44,6 +56,7 @@ export default function RepoCard({
             }
           : undefined,
       });
+
       setExplain(data);
     } catch (err) {
       setExplain(null);
@@ -52,21 +65,25 @@ export default function RepoCard({
       setExplainLoading(false);
     }
   };
+
   const name = getRepoDisplayName(repo);
   const description = repo?.description || 'No description available.';
   const topics = Array.isArray(repo?.topics) ? repo.topics : [];
-  const url = repo?.url || '#';
+  const url = repo?.url || repo?.html_url || '#';
 
   return (
     <article className={`repo-card ${isSelected ? 'repo-card--selected' : ''}`}>
       <header className="repo-card__header">
         <div className="repo-card__title-block">
           <span className="repo-card__rank">#{repo?.rank ?? '—'}</span>
+
           <h3>{name}</h3>
+
           {repo?.title && repo.title !== repo?.full_name && (
             <p className="repo-card__subtitle">{repo.title}</p>
           )}
         </div>
+
         <div className="repo-card__score-badge" title="Final relevance score">
           <Sparkles size={14} aria-hidden />
           {formatScore(repo?.score)}
@@ -76,8 +93,13 @@ export default function RepoCard({
       <p className="repo-card__description">{description}</p>
 
       <div className="repo-card__badges">
-        {repo?.language && <span className="badge badge--lang">{repo.language}</span>}
-        {repo?.license && <span className="badge badge--license">{repo.license}</span>}
+        {repo?.language && (
+          <span className="badge badge--lang">{repo.language}</span>
+        )}
+
+        {repo?.license && (
+          <span className="badge badge--license">{repo.license}</span>
+        )}
       </div>
 
       <div className="repo-card__stats">
@@ -85,14 +107,17 @@ export default function RepoCard({
           <Star size={15} aria-hidden />
           {formatCount(repo?.stars)}
         </span>
+
         <span title="Forks">
           <GitFork size={15} aria-hidden />
           {formatCount(repo?.forks)}
         </span>
+
         <span title="Open issues">
           <AlertCircle size={15} aria-hidden />
           {formatCount(repo?.issues)}
         </span>
+
         {repo?.watchers != null && (
           <span title="Watchers">
             <GitBranch size={15} aria-hidden />
@@ -104,6 +129,7 @@ export default function RepoCard({
       {topics.length > 0 && (
         <div className="repo-card__topics">
           <span className="repo-card__topics-label">Tags</span>
+
           {topics.slice(0, 6).map((topic) => (
             <span key={topic} className="topic-pill">
               {topic}
@@ -129,25 +155,30 @@ export default function RepoCard({
                 ? 'Hide explanation'
                 : 'Why this result?'}
           </button>
+
           {explainError && (
             <p className="repo-card__explain-error" role="alert">
               {explainError}
             </p>
           )}
+
           {explain && (
             <dl className="explain-details">
               <div>
                 <dt>Final score</dt>
                 <dd>{formatScore(explain.final_score)}</dd>
               </div>
+
               <div>
                 <dt>BM25 contribution</dt>
                 <dd>{formatScore(explain.bm25_contribution)}</dd>
               </div>
+
               <div>
                 <dt>Semantic contribution</dt>
                 <dd>{formatScore(explain.semantic_contribution)}</dd>
               </div>
+
               <div>
                 <dt>Profile contribution</dt>
                 <dd>
@@ -162,6 +193,12 @@ export default function RepoCard({
       )}
 
       <footer className="repo-card__actions">
+        <ProjectExplainButton
+          repo={repo}
+          profile={searchProfile}
+          query={searchQuery}
+        />
+
         <a
           href={url}
           target="_blank"
@@ -171,6 +208,7 @@ export default function RepoCard({
           <ExternalLink size={16} aria-hidden />
           GitHub
         </a>
+
         <button
           type="button"
           className="btn btn--secondary"

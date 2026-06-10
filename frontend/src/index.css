@@ -180,3 +180,302 @@ code {
   background: var(--color-accent-soft);
   color: var(--color-text);
 }
+
+
+.project-explainer__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(2, 6, 23, 0.78);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.project-explainer__modal {
+  width: min(1100px, 100%);
+  max-height: 90vh;
+  overflow: hidden;
+  background: #0f172a;
+  color: #e5e7eb;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 24px;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.5);
+}
+
+.project-explainer__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 26px 30px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+  background:
+    radial-gradient(circle at top left, rgba(124, 58, 237, 0.25), transparent 35%),
+    linear-gradient(135deg, rgba(15, 23, 42, 1), rgba(30, 41, 59, 0.95));
+}
+
+.project-explainer__eyebrow {
+  margin: 0 0 8px;
+  color: #a78bfa;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.project-explainer__header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #ffffff;
+}
+
+.project-explainer__header p {
+  margin: 8px 0 0;
+  color: #cbd5e1;
+  max-width: 760px;
+}
+
+.project-explainer__close {
+  border: 0;
+  background: rgba(15, 23, 42, 0.85);
+  color: #e5e7eb;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.project-explainer__close:hover {
+  background: rgba(51, 65, 85, 1);
+}
+
+.project-explainer__body {
+  padding: 26px 30px 32px;
+  overflow-y: auto;
+  max-height: calc(90vh - 125px);
+}
+
+.project-explainer__loading,
+.project-explainer__error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.project-explainer__loading {
+  background: rgba(99, 102, 241, 0.12);
+  color: #c4b5fd;
+}
+
+.project-explainer__error {
+  background: rgba(239, 68, 68, 0.12);
+  color: #fecaca;
+}
+
+.project-explainer__summary-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.project-explainer__summary-card > div,
+.project-explainer__best-for,
+.project-explainer__section {
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 18px;
+  padding: 18px;
+}
+
+.project-explainer__summary-card h3,
+.project-explainer__section h4 {
+  margin: 0 0 10px;
+  color: #ffffff;
+}
+
+.project-explainer__summary-card p,
+.project-explainer__section p {
+  margin: 0;
+  color: #cbd5e1;
+  line-height: 1.65;
+}
+
+.project-explainer__best-for {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.project-explainer__best-for span {
+  color: #94a3b8;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.project-explainer__best-for strong {
+  color: #ffffff;
+  font-size: 1.05rem;
+  margin-top: 8px;
+}
+
+.project-explainer__best-for small {
+  color: #a78bfa;
+  margin-top: 8px;
+}
+
+.project-explainer__metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.project-explainer__metric {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  border-radius: 16px;
+  background: rgba(30, 41, 59, 0.65);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  padding: 12px;
+}
+
+.project-explainer__metric-icon {
+  color: #a78bfa;
+}
+
+.project-explainer__metric span {
+  display: block;
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.project-explainer__metric strong {
+  display: block;
+  color: #ffffff;
+  margin-top: 2px;
+}
+
+.project-explainer__two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.project-explainer__section {
+  margin-bottom: 14px;
+}
+
+.project-explainer__section h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #f8fafc;
+  font-size: 1rem;
+}
+
+.project-explainer__chips,
+.project-explainer__section-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.project-explainer__chips span {
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: #ddd6fe;
+  background: rgba(109, 40, 217, 0.22);
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  font-size: 0.82rem;
+}
+
+.project-explainer__section-tags span {
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-size: 0.78rem;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.project-explainer__section-tags .is-found {
+  color: #bbf7d0;
+  background: rgba(22, 163, 74, 0.16);
+  border-color: rgba(74, 222, 128, 0.25);
+}
+
+.project-explainer__section-tags .is-missing {
+  color: #cbd5e1;
+  background: rgba(51, 65, 85, 0.45);
+}
+
+.project-explainer__scores {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.project-explainer__score-pill {
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  padding: 12px;
+}
+
+.project-explainer__score-pill span {
+  display: block;
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
+.project-explainer__score-pill strong {
+  display: block;
+  color: #ffffff;
+  margin-top: 4px;
+}
+
+.project-explainer__list {
+  margin: 0;
+  padding-left: 20px;
+  color: #cbd5e1;
+  line-height: 1.65;
+}
+
+.project-explainer__list li + li {
+  margin-top: 6px;
+}
+
+.project-explainer__muted {
+  color: #94a3b8 !important;
+}
+
+.project-explainer__readme {
+  max-height: 180px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  color: #cbd5e1;
+}
+
+@media (max-width: 900px) {
+  .project-explainer__summary-card,
+  .project-explainer__two-col {
+    grid-template-columns: 1fr;
+  }
+
+  .project-explainer__metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .project-explainer__scores {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

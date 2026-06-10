@@ -1,39 +1,3 @@
-"""
-semantic_hybrid_search_engine.py
-
-A standalone GitHub repository search engine using:
-1) BM25 lexical search
-2) Semantic embeddings
-3) Cosine similarity over a persisted local vector database
-
-Expected input:
-- A scraped repository dataset such as processed.json.
-- Each record should be a dict with fields such as title/name/full_name/url,
-  description, language, topics, readme, tokens, stars, forks, license, etc.
-
-Install:
-    pip install sentence-transformers numpy
-
-Run from CLI:
-    python semantic_hybrid_search_engine.py --data processed.json --query "react dashboard starter" --top-k 10
-
-Use from Python:
-    from semantic_hybrid_search_engine import GitHubRepoSearchEngine
-
-    engine = GitHubRepoSearchEngine(data_path="processed.json", vector_db_path="vector_db")
-    results = engine.search("python machine learning api", top_k=5)
-
-What gets persisted:
-- vector_db/repo_embeddings.npy      Semantic vectors
-- vector_db/repo_metadata.json       Dataset/index metadata
-- vector_db/bm25_index.json          BM25 tokenized corpus and IDF values
-
-Notes:
-- The local vector DB is a lightweight file-based vector store.
-- Cosine similarity is computed as a dot product because vectors are normalized.
-- BM25 is implemented in this file, so no external BM25 package is required.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -65,7 +29,7 @@ DEFAULT_STOPWORDS = {
 
 
 def normalize_text(value: Any) -> str:
-    """Convert arbitrary scraped values into clean text."""
+ 
     if value is None:
         return ""
     if isinstance(value, (list, tuple, set)):
@@ -78,14 +42,14 @@ def normalize_text(value: Any) -> str:
 
 
 def tokenize(text: str, stopwords: Optional[set[str]] = None) -> List[str]:
-    """Tokenize text for BM25."""
+    
     stopwords = stopwords if stopwords is not None else DEFAULT_STOPWORDS
     tokens = [m.group(0).lower().strip(".-_") for m in _WORD_RE.finditer(text)]
     return [t for t in tokens if t and t not in stopwords and len(t) > 1]
 
 
 def min_max_normalize(values: np.ndarray) -> np.ndarray:
-    """Normalize values into [0, 1]. Returns zeros when all values are equal."""
+    
     if values.size == 0:
         return values
     v_min = float(np.min(values))
@@ -103,7 +67,7 @@ def safe_int(value: Any, default: int = 0) -> int:
 
 
 def dataset_fingerprint(docs: Sequence[Dict[str, Any]]) -> str:
-    """Stable fingerprint to detect when scraped data changed."""
+    
     lightweight = []
     for doc in docs:
         lightweight.append(

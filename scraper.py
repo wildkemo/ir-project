@@ -33,7 +33,7 @@ class FastGitHubScraper:
         adapter = requests.adapters.HTTPAdapter(
             pool_connections=50,
             pool_maxsize=50
-        )
+        )   
         self.session.mount("https://", adapter)
 
         self.api_headers = {
