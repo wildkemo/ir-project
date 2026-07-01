@@ -35,6 +35,7 @@ const PROFILE_TOP_K = 10;
 
 export default function App() {
   const { theme, toggleTheme } = useTheme();
+
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [filterOptions, setFilterOptions] = useState({
@@ -46,6 +47,8 @@ export default function App() {
   const [profileAnswers, setProfileAnswers] = useState(() => loadStoredProfile());
   const [profileComplete, setProfileComplete] = useState(false);
   const [showProfileWizard, setShowProfileWizard] = useState(() => !loadStoredProfile());
+  const [queryOnlyMode, setQueryOnlyMode] = useState(false);
+
   const [profileResults, setProfileResults] = useState([]);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState(null);
@@ -61,6 +64,7 @@ export default function App() {
   const [recommendLoading, setRecommendLoading] = useState(false);
   const [recommendError, setRecommendError] = useState(null);
   const [apiOnline, setApiOnline] = useState(null);
+
   const didRestoreProfile = useRef(false);
 
   const runProfileRecommend = useCallback(async (answers) => {
@@ -68,8 +72,12 @@ export default function App() {
     setProfileError(null);
 
     try {
-      const data = await recommendFromProfile({ ...answers, top_k: PROFILE_TOP_K });
-        setProfileResults(filterReposOnly(data?.results));
+      const data = await recommendFromProfile({
+        ...answers,
+        top_k: PROFILE_TOP_K,
+      });
+
+      setProfileResults(filterReposOnly(data?.results));
       setProfileAnswers(answers);
       setProfileComplete(true);
       setShowProfileWizard(false);
@@ -94,16 +102,20 @@ export default function App() {
 
   useEffect(() => {
     if (didRestoreProfile.current) return;
+
     const stored = loadStoredProfile();
+
     if (!stored) return;
+
     didRestoreProfile.current = true;
+
     queueMicrotask(() => {
       runProfileRecommend(stored);
     });
   }, [runProfileRecommend]);
 
   const buildSearchPayload = useCallback(
-    (searchQuery) => {
+    (searchQuery, forceQueryOnly = queryOnlyMode) => {
       const payload = {
         query: searchQuery.trim(),
         top_k: filters.top_k ?? 10,
@@ -114,7 +126,7 @@ export default function App() {
         topic: filters.topic || null,
       };
 
-      if (profileAnswers) {
+      if (!forceQueryOnly && profileAnswers) {
         payload.profile = {
           project_type: profileAnswers.project_type ?? null,
           language: profileAnswers.language ?? null,
@@ -127,12 +139,13 @@ export default function App() {
 
       return payload;
     },
-    [filters, profileAnswers],
+    [filters, profileAnswers, queryOnlyMode],
   );
 
   const runSearch = useCallback(
-    async (searchQuery) => {
+    async (searchQuery, forceQueryOnly = queryOnlyMode) => {
       const q = (searchQuery ?? query).trim();
+
       if (!q) return;
 
       setQuery(q);
@@ -144,8 +157,9 @@ export default function App() {
       setRecommendError(null);
 
       try {
-        const data = await searchRepos(buildSearchPayload(q));
+        const data = await searchRepos(buildSearchPayload(q, forceQueryOnly));
         const repos = filterReposOnly(data?.results);
+
         setResults(repos);
         setResultCount(repos.length);
       } catch (err) {
@@ -156,10 +170,11 @@ export default function App() {
         setSearchLoading(false);
       }
     },
-    [query, buildSearchPayload],
+    [query, buildSearchPayload, queryOnlyMode],
   );
 
   const handleProfileSubmit = (answers) => {
+    setQueryOnlyMode(false);
     runProfileRecommend(answers);
   };
 
@@ -170,6 +185,7 @@ export default function App() {
     setProfileResults([]);
     setProfileError(null);
     setProfileAnswers(null);
+    setQueryOnlyMode(false);
   };
 
   const handleExampleClick = (example) => {
@@ -185,6 +201,23 @@ export default function App() {
     setFilters(DEFAULT_FILTERS);
   };
 
+  const handleToggleQueryOnlyMode = () => {
+    const nextMode = !queryOnlyMode;
+
+    setQueryOnlyMode(nextMode);
+    setSelectedRepo(null);
+    setRecommendations(null);
+    setRecommendError(null);
+
+    if (nextMode) {
+      setFilters(DEFAULT_FILTERS);
+    }
+
+    if (hasSearched && query.trim()) {
+      runSearch(query, nextMode);
+    }
+  };
+
   const handleApplyFilters = () => {
     if (hasSearched && query.trim()) {
       runSearch(query);
@@ -193,6 +226,7 @@ export default function App() {
 
   const handleSimilar = async (repo) => {
     const identifier = getRepoDisplayName(repo);
+
     if (!identifier) return;
 
     setSelectedRepo(repo);
@@ -206,6 +240,7 @@ export default function App() {
         top_k: 6,
         same_language_only: false,
       });
+
       setRecommendations(data);
     } catch (err) {
       setRecommendations(null);
@@ -230,6 +265,7 @@ export default function App() {
           <ScanSearch size={18} aria-hidden />
           Repo<span>Mind</span>
         </div>
+
         <div className="top-bar__actions">
           {apiOnline === true && (
             <span className="status-pill status-pill--online" title="API connected">
@@ -237,12 +273,14 @@ export default function App() {
               Live
             </span>
           )}
+
           {apiOnline === false && (
             <span className="status-pill status-pill--offline" title="API offline">
               <span className="status-pill__dot" aria-hidden />
               Offline
             </span>
           )}
+
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
         </div>
       </div>
@@ -252,24 +290,29 @@ export default function App() {
           <div className="hero__logo" aria-hidden>
             <ScanSearch size={32} />
           </div>
+
           <div>
             <h1 className="hero__title">
               Repo<span className="hero__accent">Mind</span>
             </h1>
+
             <p className="hero__subtitle">
               Get personalized repo picks, then search the full hybrid engine anytime.
             </p>
           </div>
         </div>
+
         <div className="hero__badges">
           <span className="hero__badge">
             <Zap size={14} aria-hidden />
             Profile recommendations
           </span>
+
           <span className="hero__badge hero__badge--muted">
             <Sparkles size={14} aria-hidden />
             Hybrid BM25 + semantic search
           </span>
+
           <span className="hero__badge hero__badge--muted">
             <Layers size={14} aria-hidden />
             Similar repos
@@ -285,6 +328,24 @@ export default function App() {
           onExampleClick={handleExampleClick}
           disabled={searchLoading}
         />
+
+        <div className="query-mode-toggle">
+          <button
+            type="button"
+            className={`btn ${queryOnlyMode ? 'btn--primary' : 'btn--secondary'}`}
+            onClick={handleToggleQueryOnlyMode}
+            disabled={searchLoading}
+          >
+            <RotateCcw size={14} aria-hidden />
+            {queryOnlyMode ? 'Query Only Mode: ON' : 'Search Without Profile Bias'}
+          </button>
+
+          {queryOnlyMode && (
+            <p className="query-mode-note">
+              Personalization is disabled. Results are ranked by the query only, without profile or topic bias.
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="filters-bar">
@@ -341,11 +402,13 @@ export default function App() {
                     Your top {profileResults.length} recommendation
                     {profileResults.length === 1 ? '' : 's'}
                   </h2>
+
                   <p className="profile-results__subtitle">
                     Up to {PROFILE_TOP_K} repos ranked by your profile — project type, language,
                     goals, and more.
                   </p>
                 </div>
+
                 <button
                   type="button"
                   className="btn btn--ghost btn--sm"
@@ -355,6 +418,7 @@ export default function App() {
                   Retake quiz
                 </button>
               </header>
+
               <div className="results-grid">
                 {profileResults.map((repo) => (
                   <ProfileRepoCard
@@ -377,17 +441,18 @@ export default function App() {
             profileResults.length === 0 &&
             !profileLoading &&
             !hasSearched && (
-            <EmptyState
-              variant="noResults"
-              message="No profile matches found. Try retaking the quiz with different preferences."
-            />
-          )}
+              <EmptyState
+                variant="noResults"
+                message="No profile matches found. Try retaking the quiz with different preferences."
+              />
+            )}
 
           {hasSearched && (
             <section className="search-results" aria-labelledby="search-results-title">
               <h2 id="search-results-title" className="section-divider__title">
                 Search results
               </h2>
+
               {searchLoading && <LoadingState />}
 
               {!searchLoading && !searchError && results.length === 0 && (
@@ -398,14 +463,21 @@ export default function App() {
                 <>
                   <p className="results-summary">
                     Found <strong>{resultCount}</strong> repositories for &ldquo;{query}&rdquo;
+                    {queryOnlyMode && (
+                      <span className="query-mode-summary">
+                        {' '}
+                        · Query-only ranking
+                      </span>
+                    )}
                   </p>
+
                   <div className="results-grid">
                     {results.map((repo) => (
                       <RepoCard
                         key={repo?.id || repo?.full_name || repo?.rank}
                         repo={repo}
                         searchQuery={query}
-                        searchProfile={profileAnswers}
+                        searchProfile={queryOnlyMode ? null : profileAnswers}
                         onSimilar={handleSimilar}
                         isSelected={
                           selectedRepo?.full_name === repo?.full_name ||

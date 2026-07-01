@@ -7,6 +7,8 @@ from backend.api.repos import router as repos_router
 from backend.api.profile import router as profile_router
 from backend.api.advisor import router as advisor_router
 from backend.api.project_explainer import router as project_explainer_router
+from backend.api.rag import router as rag_router
+
 app = FastAPI(
     title="Open-Source Project Search Engine API",
     description="Hybrid BM25 + semantic search backend for GitHub repository discovery.",
@@ -50,3 +52,4 @@ app.include_router(repos_router)
 app.include_router(profile_router)
 app.include_router(advisor_router)
 app.include_router(project_explainer_router)
+app.include_router(rag_router)

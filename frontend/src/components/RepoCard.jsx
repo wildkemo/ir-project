@@ -11,6 +11,7 @@ import {
 
 import ScoreBreakdown from './ScoreBreakdown';
 import ProjectExplainButton from './ProjectExplainButton';
+import RagExplainButton from './RagExplainButton';
 
 import { explainResult, getApiErrorMessage } from '../api/client';
 import { formatCount, formatScore } from '../utils/format';
@@ -183,7 +184,8 @@ export default function RepoCard({
                 <dt>Profile contribution</dt>
                 <dd>
                   {formatScore(
-                    explain.profile_contribution ?? explain.metadata_contribution,
+                    explain.profile_contribution ??
+                      explain.metadata_contribution,
                   )}
                 </dd>
               </div>
@@ -197,6 +199,20 @@ export default function RepoCard({
           repo={repo}
           profile={searchProfile}
           query={searchQuery}
+        />
+
+        <RagExplainButton
+          repo={repo}
+          query={searchQuery}
+          profile={searchProfile}
+          mode="explain"
+        />
+
+        <RagExplainButton
+          repo={repo}
+          query={searchQuery}
+          profile={searchProfile}
+          mode="roadmap"
         />
 
         <a
