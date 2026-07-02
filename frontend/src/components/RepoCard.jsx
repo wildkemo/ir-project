@@ -9,7 +9,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 
-import ScoreBreakdown from './ScoreBreakdown';
+import FavoriteButton from './FavoriteButton';
 import ProjectExplainButton from './ProjectExplainButton';
 import RagExplainButton from './RagExplainButton';
 
@@ -214,6 +214,8 @@ export default function RepoCard({
           profile={searchProfile}
           mode="roadmap"
         />
+
+        <FavoriteButton repoIdentifier={name} />
 
         <a
           href={url}

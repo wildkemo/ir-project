@@ -1,13 +1,19 @@
-from typing import Any, Dict, Optional
+import os
+import time
+from typing import Annotated, Any, Dict, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
+from backend.core.ai_tracking import repo_identifier_from_payload, track_ai_request
 from backend.core.rag_advisor import (
     explain_repo_with_rag,
     generate_roadmap_with_rag,
 )
-
+from backend.database.session import get_db
+from backend.models.user import User
+from backend.security.deps import get_optional_current_user
 
 router = APIRouter(prefix="/api/rag", tags=["RAG Advisor"])
 
@@ -19,18 +25,40 @@ class RagRepoRequest(BaseModel):
 
 
 @router.post("/explain")
-def explain_repo(request: RagRepoRequest):
-    return explain_repo_with_rag(
-        repo=request.repo,
-        query=request.query,
-        profile=request.profile,
+def explain_repo(
+    request: RagRepoRequest,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_optional_current_user)] = None,
+):
+    return track_ai_request(
+        db,
+        current_user,
+        "rag_explain",
+        repo_identifier_from_payload(request.repo),
+        lambda: explain_repo_with_rag(
+            repo=request.repo,
+            query=request.query,
+            profile=request.profile,
+        ),
+        model=os.getenv("OLLAMA_MODEL"),
     )
 
 
 @router.post("/roadmap")
-def roadmap_repo(request: RagRepoRequest):
-    return generate_roadmap_with_rag(
-        repo=request.repo,
-        query=request.query,
-        profile=request.profile,
+def roadmap_repo(
+    request: RagRepoRequest,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_optional_current_user)] = None,
+):
+    return track_ai_request(
+        db,
+        current_user,
+        "learning_roadmap",
+        repo_identifier_from_payload(request.repo),
+        lambda: generate_roadmap_with_rag(
+            repo=request.repo,
+            query=request.query,
+            profile=request.profile,
+        ),
+        model=os.getenv("OLLAMA_MODEL"),
     )

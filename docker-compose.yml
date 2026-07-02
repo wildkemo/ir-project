@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: repomind-postgres
+
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: repomind
+      POSTGRES_PASSWORD: repomind123
+      POSTGRES_DB: repomind
+
+    
+    ports:
+    - "5433:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

@@ -1,6 +1,6 @@
 # RepoMind AI — Run Order (Beginner Guide)
 
-This guide explains exactly how to set up and run the project from scratch.
+Step-by-step setup from a fresh clone.
 
 ---
 
@@ -9,6 +9,7 @@ This guide explains exactly how to set up and run the project from scratch.
 - Python 3.10+
 - Node.js 18+ and npm
 - Git
+- (Optional) [Ollama](https://ollama.com) for AI explain/roadmap features
 
 ---
 
@@ -16,7 +17,7 @@ This guide explains exactly how to set up and run the project from scratch.
 
 ```bash
 git clone <repository-url>
-cd "RepoMind AI"
+cd ir-project
 ```
 
 ---
@@ -37,108 +38,90 @@ source venv/bin/activate
 
 ## Step 3 — Install Python Dependencies
 
+There is no `requirements.txt` in the repo. Install manually:
+
 ```bash
-pip install -r requirements.txt
+pip install fastapi "uvicorn[standard]" pydantic numpy sentence-transformers \
+  nltk requests beautifulsoup4 python-dotenv qdrant-client
 ```
 
-This installs:
-- `fastapi`, `uvicorn`, `pydantic` — API server
-- `numpy`, `nltk`, `requests`, `beautifulsoup4`, `python-dotenv` — data pipeline
-- `sentence-transformers` — semantic search embeddings
-- `qdrant-client` — optional vector database
-
-The first run will also download NLTK data automatically (stopwords, wordnet).
+NLTK data downloads automatically on first `process.py` run.
 
 ---
 
 ## Step 4 — Configure Environment Variables
 
-Copy the example file and edit if needed:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
+Create `.env` at project root:
 
 ```env
-# Enable /docs and /redoc endpoints (development)
-DEBUG=true
-
-# (Optional) GitHub token raises API rate limit from 60 to 5000 req/hour
-# Required if you plan to re-scrape data
+# Optional — for re-scraping (raises GitHub rate limit)
 GITHUB_TOKEN=your_token_here
 
-# (Optional) Override allowed frontend origins
-# CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+# Optional — for Ollama RAG features
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=qwen2.5:1.5b
 ```
 
-> **If you only want to run the backend with existing data, you can skip the token.**
+> If you only run search with existing `processed.json`, you can skip all env vars.
 
 ---
 
 ## Step 5 — [OPTIONAL] Re-Scrape GitHub Data
 
-> **Skip this step** if `processed.json` already exists (it is included in the repository).
+Skip if `processed.json` already exists (it is included in the repository).
 
 ```bash
 python scraper.py
 ```
 
-- This crawls GitHub topics and collects repository data.
-- Output: `new_data.json` (~50–2000 repositories)
-- Takes 5–30 minutes depending on token availability.
-- Without a token, GitHub will rate-limit you to 60 requests/hour.
+- Output: `new_data.json`
+- Takes 5–30 minutes depending on token availability
+- Without token: 60 GitHub API requests/hour
 
 ---
 
-## Step 6 — [OPTIONAL] Process the Raw Data
+## Step 6 — [OPTIONAL] Process Raw Data
 
-> **Skip this step** if `processed.json` already exists.
+Skip if `processed.json` already exists.
 
 ```bash
 python process.py
 ```
 
-- Reads `new_data.json`, applies NLP processing, computes scores.
-- Output: `processed.json`
-- Takes 30 seconds to 3 minutes.
+- Reads `new_data.json` → writes `processed.json`
+- Takes 30 seconds to 3 minutes
 
 ---
 
-## Step 7 — [OPTIONAL] Run Dataset Analysis
-
-> Optional — for understanding the dataset.
+## Step 7 — [OPTIONAL] Dataset Analysis
 
 ```bash
 python analysis.py
 ```
 
-- Prints a terminal report: vocabulary size, top terms, top languages, top repos by stars.
-- No files are generated.
+Prints vocabulary stats, top languages, top repos. No files generated.
 
 ---
 
 ## Step 8 — Start the FastAPI Backend
 
+**Must run from project root** (required for root-level imports):
+
 ```bash
- python -m uvicorn 8000backend.main:app --reload --port ```
+uvicorn backend.main:app --reload --port 8000
+```
 
-The server starts at: **http://127.0.0.1:8000**
+- API: http://127.0.0.1:8000
+- Swagger docs: http://127.0.0.1:8000/docs
+- Health: http://127.0.0.1:8000/health
 
-API documentation (when `DEBUG=true`):
-- Swagger UI: http://127.0.0.1:8000/docs
-- ReDoc: http://127.0.0.1:8000/redoc
-- Health check: http://127.0.0.1:8000/health
-
-> **First search request will take 1–5 minutes** as the search index is built automatically.
-> Subsequent requests use the cached index in `storage/`.
+> First search request takes 1–5 minutes while the index builds in `vector_db/`.
 
 ---
 
 ## Step 9 — Install Frontend Dependencies
 
-In a new terminal:
+New terminal:
 
 ```bash
 cd frontend
@@ -154,48 +137,56 @@ cd frontend
 npm run dev
 ```
 
-The frontend starts at: **http://localhost:5173**
-
-The Vite dev server automatically proxies all `/api` requests to `http://127.0.0.1:8000`.
+- UI: http://localhost:5173
+- Vite proxies `/api` requests to the backend
 
 ---
 
-## Step 11 — Verify the System
+## Step 11 — [OPTIONAL] Start Ollama for AI Features
+
+New terminal:
+
+```bash
+ollama serve
+ollama pull qwen2.5:1.5b
+```
+
+Without Ollama, "Explain with AI" and "AI Roadmap" buttons will show errors. All other features work.
+
+---
+
+## Step 12 — Verify the System
 
 1. Open http://localhost:5173
-2. Type a search query (e.g., "machine learning python")
-3. Results should appear within a few seconds (after the first-time index build)
-4. Try the Profile Wizard button to get personalized recommendations
-5. Click any repo card to see the "Explain Project" button
+2. Complete the profile wizard (or skip if stored profile exists)
+3. See profile recommendations
+4. Search for e.g. "machine learning python"
+5. On a result card, try:
+   - **Explain Project** — instant rule-based analysis
+   - **Explain with AI** — Ollama explanation (needs Ollama)
+   - **Similar Projects** — embedding neighbors
+6. Check backend health indicator (green "Live" pill in top bar)
 
 ---
 
-## [OPTIONAL] Step 12 — Upload to Qdrant (Advanced)
-
-> Only needed if you want to use Qdrant as your vector database.
-
-First, start Qdrant:
+## [OPTIONAL] Step 13 — Qdrant Upload
 
 ```bash
 docker run -p 6333:6333 qdrant/qdrant
-```
-
-Then upload:
-
-```bash
 python quadrant_updater.py
 ```
 
-Configure via environment variables:
+Main search engine does not use Qdrant.
 
-```env
-QDRANT_URL=http://127.0.0.1:6333
-QDRANT_COLLECTION=github_repos
-EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
-VECTOR_SIZE=384
+---
+
+## [OPTIONAL] Step 14 — PostgreSQL (docker-compose)
+
+```bash
+docker compose up -d
 ```
 
-> **Note:** The main search engine does NOT use Qdrant. This is for future integration.
+Starts Postgres on host port `5433`. Not connected to app code yet.
 
 ---
 
@@ -203,28 +194,31 @@ VECTOR_SIZE=384
 
 | Issue | Solution |
 |---|---|
-| `FileNotFoundError: processed.json` | Run `python process.py` first |
-| First search is very slow (1–5 min) | Normal — the search index is being built. Wait for it. |
-| `Cannot reach API at http://127.0.0.1:8000` | Make sure `uvicorn` is running |
-| Rate limit from GitHub | Add `GITHUB_TOKEN` to `.env` |
-| `ModuleNotFoundError: sentence_transformers` | Run `pip install sentence-transformers` |
-| CORS errors in browser | Ensure `DEBUG=true` in `.env` and frontend is on `:5173` |
-| Frontend shows no results | Confirm the backend is running and `processed.json` exists |
+| `FileNotFoundError: processed.json` | Run `python process.py` or ensure file exists |
+| First search very slow | Normal — index building. Wait 1–5 min. |
+| `Cannot reach API` | Start uvicorn from project root |
+| `ModuleNotFoundError: repo_utils` | Run uvicorn from project root, not `cd backend` |
+| GitHub rate limit | Add `GITHUB_TOKEN` to `.env` |
+| RAG buttons fail | Start Ollama: `ollama serve` + `ollama pull qwen2.5:1.5b` |
+| CORS errors | Ensure frontend is on `:5173` (hardcoded in main.py) |
+| No search results | Confirm backend running and `processed.json` exists |
 
 ---
 
 ## Full Execution Order Summary
 
-```
+```bash
 # Run once (data pipeline):
 python scraper.py          # → new_data.json
 python process.py          # → processed.json
 python analysis.py         # → console report (optional)
 
-# Run every time (server):
-uvicorn backend.main:app --reload --port 8000   # Terminal 1
-cd frontend && npm run dev                       # Terminal 2
+# Run every session:
+uvicorn backend.main:app --reload --port 8000   # Terminal 1 (project root)
+cd frontend && npm run dev                         # Terminal 2
+ollama serve                                       # Terminal 3 (optional, for RAG)
 
 # Optional:
-python quadrant_updater.py  # Only if using Qdrant
+python quadrant_updater.py   # Qdrant upload
+docker compose up -d         # PostgreSQL
 ```

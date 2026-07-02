@@ -2,7 +2,7 @@
 
 Base URL: `http://127.0.0.1:8000`
 
-Interactive Docs (when `DEBUG=true`): http://127.0.0.1:8000/docs
+Interactive docs: http://127.0.0.1:8000/docs (always available — no DEBUG gate in current `main.py`)
 
 ---
 
@@ -10,11 +10,8 @@ Interactive Docs (when `DEBUG=true`): http://127.0.0.1:8000/docs
 
 ### `GET /`
 
-**Purpose:** API root — returns basic service info.
+Returns basic service info.
 
-**Input:** None
-
-**Output:**
 ```json
 {
   "message": "Open-Source Project Search Engine API",
@@ -23,22 +20,19 @@ Interactive Docs (when `DEBUG=true`): http://127.0.0.1:8000/docs
 }
 ```
 
-**Files:** `backend/main.py`
+**File:** `backend/main.py`
 
 ---
 
 ### `GET /health`
 
-**Purpose:** Health check endpoint. Used by the frontend to verify the backend is reachable.
+Health check used by frontend on load.
 
-**Input:** None
-
-**Output:**
 ```json
 { "status": "ok" }
 ```
 
-**Files:** `backend/main.py`
+**File:** `backend/main.py`
 
 ---
 
@@ -46,9 +40,10 @@ Interactive Docs (when `DEBUG=true`): http://127.0.0.1:8000/docs
 
 ### `POST /search/`
 
-**Purpose:** Hybrid BM25 + semantic search over all indexed repositories.
+Hybrid BM25 + semantic search over all indexed repositories.
 
-**Input (JSON body):**
+**Request body:**
+
 ```json
 {
   "query": "machine learning python",
@@ -69,18 +64,19 @@ Interactive Docs (when `DEBUG=true`): http://127.0.0.1:8000/docs
 }
 ```
 
-| Field | Type | Required | Default | Notes |
-|---|---|---|---|---|
-| `query` | string | ✅ | — | 1–500 chars |
-| `top_k` | int | No | 10 | 1–100 |
-| `candidate_pool` | int | No | 200 | 10–500 |
-| `language` | string | No | null | Filter by language |
-| `license_name` | string | No | null | Filter by license |
-| `min_stars` | int | No | null | Minimum star count |
-| `topic` | string | No | null | Filter by topic |
-| `profile` | object | No | null | Optional user profile for query enrichment |
+| Field | Type | Required | Default |
+|---|---|---|---|
+| `query` | string | ✅ | — |
+| `top_k` | int | No | 10 (1–100) |
+| `candidate_pool` | int | No | 200 (10–500) |
+| `language` | string | No | null |
+| `license_name` | string | No | null |
+| `min_stars` | int | No | null |
+| `topic` | string | No | null |
+| `profile` | object | No | null |
 
-**Output:**
+**Response:**
+
 ```json
 {
   "query": "machine learning python",
@@ -92,8 +88,6 @@ Interactive Docs (when `DEBUG=true`): http://127.0.0.1:8000/docs
       "score": 0.812345,
       "bm25_score": 0.85,
       "semantic_score": 0.77,
-      "phrase_score": 0.0,
-      "metadata_score": 0.65,
       "id": 42,
       "title": "awesome-ml",
       "full_name": "owner/awesome-ml",
@@ -110,22 +104,22 @@ Interactive Docs (when `DEBUG=true`): http://127.0.0.1:8000/docs
         "semantic_similarity": 0.77,
         "profile_match": 0.65,
         "weights": {"bm25": 0.45, "semantic": 0.45, "popularity": 0.10}
-      },
-      "mode": null
+      }
     }
   ]
 }
 ```
 
-**Files:** `backend/api/search.py`, `backend/core/semantic_loader.py`, `core/search_engine.py`
+**Files:** `backend/api/search.py`, `backend/core/semantic_loader.py`, `semantic_hybrid_recommender.py`
 
 ---
 
 ### `POST /search/explain`
 
-**Purpose:** Explain why a specific repository scored the way it did for a given query.
+Explain why a specific repository scored as it did for a query.
 
-**Input (JSON body):**
+**Request:**
+
 ```json
 {
   "query": "machine learning",
@@ -134,13 +128,8 @@ Interactive Docs (when `DEBUG=true`): http://127.0.0.1:8000/docs
 }
 ```
 
-| Field | Type | Required |
-|---|---|---|
-| `query` | string | ✅ |
-| `repo_identifier` | string | ✅ |
-| `profile` | object | No |
+**Response:**
 
-**Output:**
 ```json
 {
   "query": "machine learning",
@@ -167,9 +156,10 @@ Interactive Docs (when `DEBUG=true`): http://127.0.0.1:8000/docs
 
 ### `POST /recommend/`
 
-**Purpose:** Find repositories semantically similar to a given repository using embedding cosine similarity.
+Find repositories semantically similar to a given repo (embedding cosine similarity).
 
-**Input (JSON body):**
+**Request:**
+
 ```json
 {
   "repo_identifier": "owner/repo-name",
@@ -178,13 +168,8 @@ Interactive Docs (when `DEBUG=true`): http://127.0.0.1:8000/docs
 }
 ```
 
-| Field | Type | Required | Default |
-|---|---|---|---|
-| `repo_identifier` | string | ✅ | — |
-| `top_k` | int | No | 10 |
-| `same_language_only` | bool | No | false |
+**Response:**
 
-**Output:**
 ```json
 {
   "repo_identifier": "owner/repo-name",
@@ -197,11 +182,6 @@ Interactive Docs (when `DEBUG=true`): http://127.0.0.1:8000/docs
       "full_name": "other/similar-repo",
       "title": "similar-repo",
       "url": "https://github.com/other/similar-repo",
-      "description": "...",
-      "language": "Python",
-      "topics": [...],
-      "stars": 1200,
-      "forks": 200,
       "semantic_cosine": 0.923456,
       "similarity": 0.923456
     }
@@ -209,7 +189,7 @@ Interactive Docs (when `DEBUG=true`): http://127.0.0.1:8000/docs
 }
 ```
 
-**Files:** `backend/api/recommend.py`, `backend/core/semantic_loader.py`, `core/search_engine.py`
+**Files:** `backend/api/recommend.py`, `backend/core/semantic_loader.py`
 
 ---
 
@@ -217,50 +197,19 @@ Interactive Docs (when `DEBUG=true`): http://127.0.0.1:8000/docs
 
 ### `GET /repos/`
 
-**Purpose:** List repositories from the dataset (paginated by `limit`).
+List repositories from the dataset (paginated).
 
-**Input (query params):**
+| Param | Default | Max |
+|---|---|---|
+| `limit` | 20 | 100 |
 
-| Param | Type | Default | Max |
-|---|---|---|---|
-| `limit` | int | 20 | 100 |
-
-**Output:**
-```json
-{
-  "count": 20,
-  "results": [
-    {
-      "name": "repo-name",
-      "full_name": "owner/repo-name",
-      "url": "https://github.com/owner/repo-name",
-      "description": "...",
-      "language": "Python",
-      "stars": 500,
-      "forks": 80
-    }
-  ]
-}
-```
-
-**Files:** `backend/api/repos.py`, `backend/core/repo_sanitize.py`
+**Files:** `backend/api/repos.py`, `repo_utils.py`
 
 ---
 
 ### `GET /repos/filters/options`
 
-**Purpose:** Return available filter values (languages, licenses, topics) derived from the dataset.
-
-**Input:** None
-
-**Output:**
-```json
-{
-  "languages": ["C", "C++", "Go", "JavaScript", "Python", ...],
-  "licenses": ["Apache-2.0", "MIT", ...],
-  "topics": ["android", "api", "deep-learning", ...]
-}
-```
+Returns available languages, licenses, and topics from the dataset.
 
 **Files:** `backend/api/repos.py`
 
@@ -268,19 +217,9 @@ Interactive Docs (when `DEBUG=true`): http://127.0.0.1:8000/docs
 
 ### `GET /repos/details/{repo_identifier}`
 
-**Purpose:** Retrieve the full raw document for a specific repository.
+Full raw document for a repository from `processed.json`. Returns 404 if not found.
 
-**Input (path param):**
-
-| Param | Type | Example |
-|---|---|---|
-| `repo_identifier` | string (path) | `owner/repo-name` or GitHub URL |
-
-**Output:** Full repository document from `processed.json`.
-
-**Error:** `404` if repository not found.
-
-**Files:** `backend/api/repos.py`, `backend/core/semantic_loader.py`
+**Files:** `backend/api/repos.py`
 
 ---
 
@@ -288,41 +227,18 @@ Interactive Docs (when `DEBUG=true`): http://127.0.0.1:8000/docs
 
 ### `GET /profile/questions`
 
-**Purpose:** Return the profile wizard questions and their answer options.
+Returns profile wizard questions and options from `smart_profile_options.json`.
 
-**Input:** None
-
-**Output:**
-```json
-{
-  "questions": [
-    {
-      "id": "project_type",
-      "title": "What type of project are you looking for?",
-      "allow_skip": true,
-      "options": [
-        { "label": "Web Development", "value": "web_dev", "count": null },
-        { "label": "AI / Machine Learning", "value": "ai_ml", "count": null }
-      ]
-    },
-    { "id": "language", "title": "Which programming language do you prefer?", "options": [...] },
-    { "id": "goal", ... },
-    { "id": "level", ... },
-    { "id": "repo_kind", ... },
-    { "id": "complexity", ... }
-  ]
-}
-```
-
-**Files:** `backend/api/profile.py`, `backend/core/profile_loader.py`, `smart_profile_options.json`
+**Files:** `backend/api/profile.py`, `backend/core/profile_loader.py`
 
 ---
 
 ### `POST /profile/recommend`
 
-**Purpose:** Return repositories matching a user profile (cold-start, no search query).
+Cold-start recommendations from user profile (no search query).
 
-**Input (JSON body):**
+**Request:**
+
 ```json
 {
   "project_type": "ai_ml",
@@ -335,34 +251,9 @@ Interactive Docs (when `DEBUG=true`): http://127.0.0.1:8000/docs
 }
 ```
 
-All fields are optional (null skips that dimension).
+All profile fields are optional.
 
-**Output:**
-```json
-{
-  "count": 10,
-  "engine": "smart_profile_recommender_v2",
-  "profile": { "project_type": "ai_ml", "language": "Python", ... },
-  "results": [
-    {
-      "rank": 1,
-      "score": 0.72,
-      "title": "...",
-      "full_name": "owner/repo",
-      "url": "...",
-      "description": "...",
-      "language": "Python",
-      "topics": [...],
-      "stars": 2000,
-      "forks": 300,
-      "why_recommended": ["Matches your selected project type", "Matches your preferred language: Python"],
-      "score_breakdown": { "project_type": 0.8, "language": 1.0, "goal": 0.6, ... },
-      "mode": "profile_recommendation",
-      "doc_id": 42
-    }
-  ]
-}
-```
+**Response includes:** `engine: "smart_profile_recommender_v2"`, `profile`, `results[]` with `why_recommended`, `score_breakdown`, `mode: "profile_recommendation"`
 
 **Files:** `backend/api/profile.py`, `backend/core/profile_loader.py`, `smart_profile_recommender_v2.py`
 
@@ -370,200 +261,67 @@ All fields are optional (null skips that dimension).
 
 ### `POST /profile/search`
 
-**Purpose:** Hybrid personalized search — combines query relevance with user profile re-ranking.
+Hybrid personalized search combining query relevance with profile re-ranking.
 
-**Input (JSON body):**
-```json
-{
-  "query": "image processing",
-  "project_type": "ai_ml",
-  "language": "Python",
-  "goal": "learning",
-  "level": "beginner",
-  "top_k": 10
-}
-```
+**Request:** Same as recommend + required `query` field.
 
-| Field | Type | Required |
-|---|---|---|
-| `query` | string | ✅ |
-| Other profile fields | optional | No |
-
-**Output:** Same structure as `/profile/recommend`, with `mode: "personalized_search"`.
-
-**Files:** `backend/api/profile.py`, `backend/core/profile_loader.py`, `smart_profile_recommender_v2.py`
+**Response:** Same structure with `mode: "personalized_search"`.
 
 ---
 
-## AI Advisor Routes (`/api/advisor`)
+## AI Advisor Routes (`/api/advisor`) — Rule-Based
+
+> These endpoints work but are **not mounted in the main App.jsx UI**. Frontend components exist in `frontend/src/components/Advisor*.jsx`.
 
 ### `POST /api/advisor/explain`
 
-**Purpose:** Generate a structured explanation for a single repository (strengths, weaknesses, best_for, roadmap).
+Structured explanation for one repository.
 
-**Input (JSON body):**
+**Request:**
+
 ```json
 {
-  "repo": {
-    "name": "awesome-ml",
-    "full_name": "owner/awesome-ml",
-    "url": "https://github.com/owner/awesome-ml",
-    "description": "...",
-    "language": "Python",
-    "stars": 5000,
-    "forks": 800,
-    "topics": ["machine-learning"],
-    "readme": "# README content..."
-  },
-  "profile": { "language": "Python", "goal": "learning", "level": "beginner" },
+  "repo": { "name": "...", "full_name": "...", "readme": "...", "stars": 5000 },
+  "profile": { "goal": "learning", "level": "beginner" },
   "query": "machine learning",
-  "score_breakdown": { "bm25": 0.85, "semantic": 0.77 },
+  "score_breakdown": { "bm25": 0.85 },
   "include_roadmap": true
 }
 ```
 
-**Output:**
-```json
-{
-  "repo_name": "awesome-ml",
-  "repo_url": "https://github.com/owner/awesome-ml",
-  "summary": "awesome-ml is a Python-based repository...",
-  "best_for": "Learning and exploration",
-  "difficulty": "beginner",
-  "technologies": ["python", "tensorflow", "numpy"],
-  "topics": ["machine-learning"],
-  "scores": {
-    "documentation_score": 0.72,
-    "contribution_score": 0.45,
-    "health_score": 0.68,
-    "repo_intents": { "learning": 0.8, "production": 0.3, ... }
-  },
-  "strengths": ["Strong documentation signals", "Includes installation guidance"],
-  "weaknesses": ["Limited contribution readiness signals"],
-  "why_recommended": ["Relevant to the search query: 'machine learning'"],
-  "roadmap": {
-    "roadmap_type": "learning",
-    "title": "Learning roadmap for awesome-ml",
-    "steps": ["Start by reading the README...", ...]
-  }
-}
-```
+**Response:** `summary`, `best_for`, `difficulty`, `technologies`, `scores`, `strengths`, `weaknesses`, `why_recommended`, optional `roadmap`
 
-**Files:** `backend/api/advisor.py`, `backend/core/repo_explainer.py`, `backend/core/repo_intelligence.py`, `backend/core/roadmap_generator.py`
+**Files:** `backend/api/advisor.py`, `backend/core/repo_explainer.py`, `backend/core/repo_intelligence.py`
 
 ---
 
 ### `POST /api/advisor/roadmap`
 
-**Purpose:** Generate a personalized action roadmap for a repository based on user goal.
+Goal-aware step-by-step roadmap.
 
-**Input (JSON body):**
-```json
-{
-  "repo": { ... repo object ... },
-  "profile": { "goal": "contribution", "level": "intermediate" }
-}
-```
+**Request:** `{ "repo": {...}, "profile": { "goal": "contribution" } }`
 
-**Output:**
-```json
-{
-  "roadmap_type": "contribution",
-  "title": "Contribution roadmap for awesome-ml",
-  "steps": [
-    "Start by reading the README...",
-    "Follow the installation/setup section...",
-    "Read the contributing guide carefully...",
-    "Look for good-first-issue, help-wanted tasks...",
-    "Open a small pull request..."
-  ]
-}
-```
-
-**Files:** `backend/api/advisor.py`, `backend/core/roadmap_generator.py`, `backend/core/repo_intelligence.py`
+**Response:** `{ "roadmap_type", "title", "steps": [...] }`
 
 ---
 
 ### `POST /api/advisor/compare`
 
-**Purpose:** Compare two repositories side-by-side and recommend the better one for the user's goal.
+Side-by-side comparison of two repositories.
 
-**Input (JSON body):**
-```json
-{
-  "repo_a": { ... repo object ... },
-  "repo_b": { ... repo object ... },
-  "profile": { "goal": "learning" },
-  "query": "machine learning"
-}
-```
+**Request:** `{ "repo_a": {...}, "repo_b": {...}, "profile": {...}, "query": "..." }`
 
-**Output:**
-```json
-{
-  "repo_a": "owner/repo-a",
-  "repo_b": "owner/repo-b",
-  "comparison_table": [
-    { "feature": "Language", "repo_a": "Python", "repo_b": "JavaScript" },
-    { "feature": "Documentation Score", "repo_a": 0.72, "repo_b": 0.45 },
-    { "feature": "Stars", "repo_a": 5000, "repo_b": 1200 }
-  ],
-  "repo_a_goal_score": 0.68,
-  "repo_b_goal_score": 0.43,
-  "winner": "owner/repo-a",
-  "recommendation": "For learning, owner/repo-a looks like the stronger choice...",
-  "repo_a_explainer": { ... full explanation ... },
-  "repo_b_explainer": { ... full explanation ... }
-}
-```
-
-**Files:** `backend/api/advisor.py`, `backend/core/repo_comparator.py`, `backend/core/repo_intelligence.py`, `backend/core/repo_explainer.py`
+**Response:** `comparison_table`, `winner`, `recommendation`, `repo_a_explainer`, `repo_b_explainer`
 
 ---
 
 ### `POST /api/advisor/summary`
 
-**Purpose:** AI Advisor summary — analyzes top search results and recommends the best repository with reasoning and roadmap.
+Multi-repo advisory summary over search results.
 
-**Input (JSON body):**
-```json
-{
-  "query": "machine learning python",
-  "profile": { "language": "Python", "goal": "learning", "level": "beginner" },
-  "results": [ ... array of search result objects ... ],
-  "top_k": 5
-}
-```
+**Request:** `{ "query": "...", "profile": {...}, "results": [...], "top_k": 5 }`
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `query` | string | ✅ | Max 500 chars |
-| `profile` | object | ✅ | Can be empty `{}` |
-| `results` | array | ✅ | Max 20 items |
-| `top_k` | int | No | 1–20, default 5 |
-
-**Output:**
-```json
-{
-  "summary": "Based on the query 'machine learning python'...",
-  "recommended_repo": "owner/best-repo",
-  "recommended_order": ["owner/best-repo", "owner/second-repo"],
-  "best_for_learning": "owner/tutorial-repo",
-  "best_for_contribution": "owner/active-repo",
-  "best_for_production": "owner/stable-repo",
-  "roadmap_for_recommended_repo": { ... roadmap object ... },
-  "top_explanations": [
-    {
-      "repo_name": "owner/best-repo",
-      "advisor_score": 0.82,
-      "score_breakdown": { ... },
-      "explanation": { ... }
-    }
-  ]
-}
-```
-
-**Files:** `backend/api/advisor.py`, `backend/core/ai_advisor.py`
+**Response:** `summary`, `recommended_repo`, `recommended_order`, `best_for_learning`, `roadmap_for_recommended_repo`, `top_explanations`
 
 ---
 
@@ -571,9 +329,10 @@ All fields are optional (null skips that dimension).
 
 ### `POST /api/project-explainer/explain`
 
-**Purpose:** Deep analysis of a repository — README parsing, section detection, snippet extraction, full metrics.
+Deep rule-based README analysis. **Used by "Explain Project" button in RepoCard.**
 
-**Input (JSON body):**
+**Request:**
+
 ```json
 {
   "repo": {
@@ -582,75 +341,99 @@ All fields are optional (null skips that dimension).
     "description": "...",
     "language": "Python",
     "stars": 5000,
-    "forks": 800,
     "topics": ["machine-learning"],
-    "readme": "# Full README content..."
+    "readme": "# Full README..."
   },
-  "profile": { "language": "Python", "goal": "learning" },
+  "profile": { "goal": "learning" },
   "query": "machine learning"
 }
 ```
 
-**Output:**
+**Response sections:**
+
+- `repo_identity` — name, url, language, topics, technologies
+- `project_summary`, `best_for`, `difficulty`
+- `metrics` — stars, forks, documentation_score, health_score, activity_score, etc.
+- `readme_analysis` — preview, detected_sections, section_snippets
+- `scores_interpretation` — Strong/Medium/Limited labels
+- `strengths`, `limitations`, `how_to_use_it`, `contribution_guidance`, `why_it_matches`
+
+**Files:** `backend/api/project_explainer.py`, `backend/core/project_explainer.py`
+
+---
+
+## RAG Routes (`/api/rag`) — Ollama LLM
+
+> **Requires Ollama running locally.** Used by `RagExplainButton` in RepoCard.
+
+### `POST /api/rag/explain`
+
+Grounded natural-language repository explanation via local Ollama model.
+
+**Request:**
+
 ```json
 {
-  "repo_identity": {
-    "name": "awesome-ml",
-    "full_name": "owner/awesome-ml",
-    "url": "https://github.com/owner/awesome-ml",
-    "description": "...",
-    "language": "Python",
-    "topics": ["machine-learning"],
-    "technologies": ["python", "tensorflow", "numpy"]
-  },
-  "project_summary": "awesome-ml is a Python-based GitHub repository...",
-  "best_for": "Learning and exploration (beginner level)",
-  "difficulty": "beginner",
-  "metrics": {
-    "stars": 5000,
-    "forks": 800,
-    "contributors_count": "Not available",
-    "open_issues": 42,
-    "watchers": 300,
-    "license": "MIT",
-    "last_updated": "2024-05-01T00:00:00Z",
-    "documentation_score": 0.72,
-    "contribution_score": 0.45,
-    "health_score": 0.68,
-    "popularity_score": 0.70,
-    "activity_score": 0.85
-  },
-  "readme_analysis": {
-    "preview": "First 700 chars of clean README...",
-    "detected_sections": {
-      "installation": true,
-      "usage": true,
-      "examples": true,
-      "contributing": false,
-      "license": true,
-      "api": false,
-      "testing": false,
-      "deployment": false
-    },
-    "section_snippets": {
-      "installation": "pip install awesome-ml...",
-      "usage": "import awesome_ml..."
-    }
-  },
-  "scores_interpretation": {
-    "documentation": "Strong",
-    "contribution": "Medium",
-    "health": "Strong",
-    "activity": "Strong",
-    "popularity": "Strong"
-  },
-  "strengths": ["Strong README/documentation signals.", "Includes installation guidance."],
-  "limitations": ["Contribution-readiness signals are limited."],
-  "how_to_use_it": ["Start with the Installation section...", "Follow the Usage section..."],
-  "contribution_guidance": ["Check GitHub issues and repository guidelines..."],
-  "why_it_matches": ["It was explained in the context of the user query: 'machine learning'."],
-  "raw_scores": {}
+  "repo": { "full_name": "owner/repo", "description": "...", "readme": "...", "stars": 1000 },
+  "query": "machine learning",
+  "profile": { "goal": "learning", "level": "beginner" }
 }
 ```
 
-**Files:** `backend/api/project_explainer.py`, `backend/core/project_explainer.py`
+**Response:**
+
+```json
+{
+  "mode": "rag_ollama",
+  "model": "qwen2.5:1.5b",
+  "answer": "1. Short Summary\n...\n8. Final recommendation\n..."
+}
+```
+
+The `answer` is free-text structured by the prompt (8 sections). Frontend renders it in `RagAnswerModal`.
+
+**Files:** `backend/api/rag.py`, `backend/core/rag_advisor.py`, `backend/core/llm_client.py`
+
+---
+
+### `POST /api/rag/roadmap`
+
+Grounded learning/usage roadmap via Ollama.
+
+**Request:** Same shape as `/api/rag/explain`.
+
+**Response:**
+
+```json
+{
+  "mode": "rag_ollama",
+  "model": "qwen2.5:1.5b",
+  "answer": "1. Roadmap Goal\n...\n8. Next step\n..."
+}
+```
+
+**Files:** `backend/api/rag.py`, `backend/core/rag_advisor.py`
+
+---
+
+## Error Handling
+
+All routes use FastAPI `HTTPException`:
+
+| Code | When |
+|---|---|
+| 404 | Repository not found (`/search/explain`, `/repos/details/`) |
+| 500 | Engine errors, missing `processed.json`, Ollama unreachable |
+
+Ollama failures surface as 500 with message like: `Ollama request failed: 404 ...`
+
+---
+
+## Frontend API Client Mapping
+
+| Client file | Base URL env var | Used by |
+|---|---|---|
+| `client.js` | `VITE_API_URL` (dev: `/api` via proxy) | App.jsx, SearchBar, RepoCard (explain) |
+| `projectExplainer.js` | `VITE_API_BASE_URL` or localhost:8000 | ProjectExplainButton |
+| `ragAdvisor.js` | `VITE_API_BASE_URL` or localhost:8000 | RagExplainButton |
+| `advisor.js` | `VITE_API_BASE_URL` or localhost:8000 | AdvisorButtons (unused in App) |

@@ -4,61 +4,50 @@
 
 ```mermaid
 flowchart TD
-    A[START] --> B[scraper.py\nGitHub Topic Crawling]
-    B --> C[new_data.json\nRaw repository data]
-    C --> D[process.py\nNLP Processing]
-    D --> E[processed.json\nIR-ready dataset]
-    E --> F[analysis.py\nDataset Statistics]
+    A[START] --> B[scraper.py]
+    B --> C[new_data.json]
+    C --> D[process.py]
+    D --> E[processed.json]
+    E --> F[analysis.py - optional]
     F --> G[Console Report]
-    E --> H{Optional:\nQdrant Upload}
+    E --> H{Optional: Qdrant}
     H --> I[quadrant_updater.py]
     I --> J[(Qdrant :6333)]
-    E --> K[uvicorn backend.main:app\nFastAPI Startup]
-    K --> L{First Request}
-    L --> M[GitHubRepoSearchEngine\nLazy Index Build]
-    M --> N[storage/bm25_index.json]
-    M --> O[storage/repo_embeddings.npy]
-    M --> P[storage/repo_metadata.json]
-    K --> Q[npm run dev\nReact Frontend :5173]
-    Q --> R[User Search/Browse]
-    R --> S[Hybrid Search\n/search/]
-    R --> T[Profile Wizard\n/profile/]
-    S --> U[Results Display]
-    T --> V[Profile Recommendations]
-    U --> W[Repo Explain\n/api/advisor/explain]
-    U --> X[Project Explain\n/api/project-explainer/]
-    U --> Y[Similar Repos\n/recommend/]
-    U --> Z[AI Advisor\n/api/advisor/summary]
-    W --> AA[Roadmap Panel]
+    E --> K[uvicorn backend.main:app]
+    K --> L{First /search or /recommend}
+    L --> M[GitHubRepoSearchEngine lazy build]
+    M --> N[vector_db/bm25_index.json]
+    M --> O[vector_db/repo_embeddings.npy]
+    K --> P[npm run dev]
+    P --> Q[User: Profile + Search]
+    Q --> R[POST /search/]
+    Q --> S[POST /profile/recommend]
+    R --> T[RepoCard actions]
+    T --> U[Explain Project - rule-based]
+    T --> V[Explain with AI - Ollama RAG]
+    T --> W[AI Roadmap - Ollama RAG]
+    T --> X[Similar Repos]
 ```
 
 ---
 
-## Step-by-Step Pipeline
+## Step 1 — GitHub Repository Scraping
 
----
-
-### Step 1 — GitHub Repository Scraping
-
-**Script:** `scraper.py`
-**Class:** `FastGitHubScraper`
-
-| Field | Value |
+| | |
 |---|---|
-| **Input** | GitHub website (HTML) + GitHub REST API |
-| **Output** | `new_data.json` |
-| **Required Files** | `.env` (optional, for `GITHUB_TOKEN`) |
-| **Generated Files** | `new_data.json`, `cache.json` (HTTP cache) |
-| **Dependencies** | `requests`, `beautifulsoup4`, `python-dotenv` |
+| **Script** | `scraper.py` |
+| **Class** | `FastGitHubScraper` |
+| **Input** | GitHub website + GitHub REST API |
+| **Output** | `new_data.json`, `cache.json` |
+| **Env** | `GITHUB_TOKEN` (optional) |
 
 **Process:**
-1. `get_topics()` — crawls `github.com/topics` to collect topic slugs (up to 50)
-2. `crawl_topic_repos()` — for each topic, crawls pages 1–5 and collects `owner/repo` URLs (up to 2000 total)
-3. `scrape_repo()` — for each URL, calls GitHub API `/repos/{owner}/{repo}` and `/repos/{owner}/{repo}/readme`
-4. ThreadPoolExecutor (12 workers) runs scraping in parallel
-5. Auto-saves every 20 repos; final save to `new_data.json`
+1. `get_topics()` — crawls github.com/topics (up to 50 topics)
+2. `crawl_topic_repos()` — pages 1–5 per topic, collects owner/repo URLs
+3. `scrape_repo()` — GitHub API `/repos/{owner}/{repo}` + readme
+4. ThreadPoolExecutor parallel fetch; auto-save every 20 repos
 
-**Output Schema per record:**
+**Output schema per record:**
 ```json
 {
   "url": "https://github.com/owner/repo",
@@ -68,229 +57,186 @@ flowchart TD
   "stars": 1234,
   "forks": 56,
   "language": "Python",
-  "topics": ["machine-learning", "python"],
-  "created_at": "2020-01-01T00:00:00Z",
-  "updated_at": "2024-06-01T00:00:00Z",
-  "readme": "# README content...",
+  "topics": ["machine-learning"],
+  "readme": "# README...",
   "readme_length": 5000
 }
 ```
 
 ---
 
-### Step 2 — Data Processing (NLP Pipeline)
+## Step 2 — Data Processing (NLP)
 
-**Script:** `process.py`
-**Entry function:** `process_data(input_file="new_data.json", output_file="processed.json")`
-
-| Field | Value |
+| | |
 |---|---|
+| **Script** | `process.py` |
+| **Function** | `process_data(input_file="new_data.json", output_file="processed.json")` |
 | **Input** | `new_data.json` |
 | **Output** | `processed.json` |
-| **Required Files** | `new_data.json` |
-| **Generated Files** | `processed.json` |
-| **Dependencies** | `nltk` (stopwords, wordnet, omw-1.4), `json`, `re`, `math` |
+| **Deps** | NLTK (stopwords, wordnet) |
 
 **Process:**
-1. `normalize_item()` — standardizes numeric fields (`stars`, `forks`, `watchers`, `issues`)
-2. `clean_text()` — lowercases, removes URLs, preserves programming symbols (`c++`, `c#`), removes stopwords, lemmatizes
-3. Field-weighted token construction:
-   - `title_tokens × 5` + `desc_tokens × 3` + `meta_tokens × 3` + `readme_tokens × 1` + `pop_tokens`
-4. `compute_popularity_score()` — `0.6×log(stars) + 0.3×log(forks) + 0.1×log(watchers)`
-5. `compute_activity_score()` — time-based decay score (1.0 for < 30 days, down to 0.1 for > 2 years)
-6. `compute_quality_score()` — presence of description, readme, license, topics, language
-7. `popularity_tokens()` — adds synthetic tokens (`extremely_popular`, `very_popular`, etc.) as IR boosts
+1. `normalize_item()` — standardize numeric fields
+2. `clean_text()` — lowercase, remove URLs, lemmatize, preserve `c++`/`c#`
+3. Field-weighted tokens: title×5 + desc×3 + meta×3 + readme×1 + pop_tokens
+4. `compute_popularity_score()`, `compute_activity_score()`, `compute_quality_score()`
+5. Synthetic popularity tokens (`extremely_popular`, `very_popular`, etc.)
 
-**Output adds to each record:**
-```json
-{
-  "tokens": ["machine", "learning", "python", ...],
-  "title_tokens": [...],
-  "desc_tokens": [...],
-  "readme_tokens": [...],
-  "meta_tokens": [...],
-  "pop_tokens": ["popular", "popular", "popular"],
-  "doc_length": 320,
-  "popularity_score": 4.21,
-  "activity_score": 0.8,
-  "quality_score": 0.9,
-  "processed_text": "machine learning python ..."
-}
-```
+**Added fields per record:** `tokens`, `title_tokens`, `desc_tokens`, `readme_tokens`, `doc_length`, `popularity_score`, `activity_score`, `quality_score`, `processed_text`
 
 ---
 
-### Step 3 — Dataset Analysis
+## Step 3 — Dataset Analysis (Optional)
 
-**Script:** `analysis.py`
-**Entry function:** `run_analysis()`
-
-| Field | Value |
+| | |
 |---|---|
+| **Script** | `analysis.py` |
 | **Input** | `processed.json` |
-| **Output** | Console printed report |
-| **Required Files** | `processed.json` |
-| **Generated Files** | None |
-| **Dependencies** | `json`, `collections.Counter` |
+| **Output** | Console report only |
 
-**Report includes:**
-- Total document count, avg document length, vocab size, vocab density
-- Top 10 IR signal terms (most frequent tokens)
-- Top 8 programming languages (with ASCII bar chart)
-- Top 8 topics (with ASCII bar chart)
-- Average stars and forks
-- Top 5 starred and top 5 forked repositories
+Reports: doc count, vocab size, top terms, top languages/topics, avg stars/forks, top repos.
 
 ---
 
-### Step 4 — Search Index Building (Lazy, On First Request)
+## Step 4 — Search Index Building (Lazy)
 
-**Script:** `core/search_engine.py` → `GitHubRepoSearchEngine`
-**Triggered by:** First call to `load_semantic_hybrid()` in `backend/core/semantic_loader.py`
-
-| Field | Value |
+| | |
 |---|---|
+| **Engine** | `semantic_hybrid_recommender.py` → `GitHubRepoSearchEngine` |
+| **Triggered by** | First `load_semantic_hybrid()` call |
 | **Input** | `processed.json` |
-| **Output** | `storage/bm25_index.json`, `storage/repo_embeddings.npy`, `storage/repo_metadata.json` |
-| **Required Files** | `processed.json` |
-| **Generated Files** | `storage/bm25_index.json`, `storage/repo_embeddings.npy`, `storage/repo_metadata.json` |
-| **Dependencies** | `sentence-transformers`, `numpy` |
+| **Output** | `vector_db/bm25_index.json`, `vector_db/repo_embeddings.npy`, `vector_db/repo_metadata.json` |
+| **Deps** | sentence-transformers, numpy |
 
 **Process:**
-1. Loads all documents from `processed.json`; filters to real GitHub repos (`is_github_repository()`)
-2. Computes dataset fingerprint (SHA-256 of key fields)
-3. Checks if `storage/repo_metadata.json` fingerprint matches → skip rebuild if cached
-4. `BM25Index.build()` — tokenizes all repo texts, computes TF-IDF/IDF, saves to `bm25_index.json`
-5. `model.encode()` — encodes all repo texts with `all-MiniLM-L6-v2`, saves to `repo_embeddings.npy`
-6. Saves metadata fingerprint
+1. Load docs from `processed.json`; filter to real GitHub repos
+2. Compute SHA-256 fingerprint; skip rebuild if cache matches
+3. Build BM25 index → save JSON
+4. Encode all repo texts with `all-MiniLM-L6-v2` → save `.npy`
+5. Save metadata fingerprint
 
-**Cache invalidation:** If `processed.json` changes (different fingerprint), indexes are rebuilt automatically.
-
----
-
-### Step 5 (Optional) — Qdrant Vector Database Upload
-
-**Script:** `quadrant_updater.py`
-**Entry function:** `sync_processed_json_to_qdrant()`
-
-| Field | Value |
-|---|---|
-| **Input** | `processed.json` |
-| **Output** | Qdrant collection `github_repos` |
-| **Required Files** | `processed.json`, running Qdrant instance (`:6333`) |
-| **Generated Files** | None (data stored in Qdrant) |
-| **Dependencies** | `qdrant-client`, `sentence-transformers` |
-
-**Note:** The main backend does NOT use Qdrant. This step is optional for future Qdrant-backed search.
+**First request takes 1–5 minutes.** Subsequent requests use cache.
 
 ---
 
-### Step 6 — FastAPI Backend Startup
+## Step 5 — Qdrant Upload (Optional)
 
-**Script:** `backend/main.py`
-**Command:** `uvicorn backend.main:app --reload --port 8000`
-
-| Field | Value |
+| | |
 |---|---|
-| **Input** | N/A (starts server) |
-| **Output** | HTTP API on `:8000` |
-| **Required Files** | `processed.json`, `storage/` (auto-built on first request), `smart_profile_options.json` |
-| **Generated Files** | `storage/bm25_index.json`, `storage/repo_embeddings.npy`, `storage/repo_metadata.json` (lazy) |
-| **Dependencies** | `fastapi`, `uvicorn`, `pydantic`, `sentence-transformers`, `numpy` |
+| **Script** | `quadrant_updater.py` |
+| **Input** | `processed.json` + running Qdrant |
+| **Output** | Qdrant collection |
 
-**Startup sequence:**
-1. FastAPI app is created with CORS configuration
-2. 6 routers are registered
-3. Server starts listening; **no models are loaded yet**
-4. On first `/search/` or `/recommend/` request → `load_semantic_hybrid()` → `GitHubRepoSearchEngine` loads + builds index
+Main backend does **not** use Qdrant for search.
 
 ---
 
-### Step 7 — Frontend Startup
+## Step 6 — FastAPI Backend Startup
 
-**Directory:** `frontend/`
-**Command:** `npm run dev`
-
-| Field | Value |
-|---|---|
-| **Input** | N/A |
-| **Output** | React dev server on `:5173` |
-| **Required Files** | `frontend/node_modules/` (run `npm install` first) |
-| **Generated Files** | None |
-| **Dependencies** | Node.js, npm, Vite |
-
-**Configuration:**
-- Vite proxy: all `/api` requests → `http://127.0.0.1:8000` (strips `/api` prefix)
-- `VITE_API_URL` can be set in `.env.local` to override
-
----
-
-### Step 8 — Search Request Flow
-
-**Endpoint:** `POST /search/`
-
-| Field | Value |
-|---|---|
-| **Input** | `{query, top_k, language, min_stars, topic, license_name, profile}` |
-| **Output** | `{query, count, engine, results[]}` |
-| **Files involved** | `backend/api/search.py`, `backend/core/semantic_loader.py`, `core/search_engine.py` |
-| **Dependencies** | BM25 index, embedding model, embeddings matrix |
-
-**Scoring formula:**
-```
-final = 0.45 × BM25(query, repo) + 0.45 × cosine(query_embedding, repo_embedding) + 0.10 × popularity(stars, forks)
+```bash
+uvicorn backend.main:app --reload --port 8000
 ```
 
+| | |
+|---|---|
+| **Required files** | `processed.json` (must exist before first search) |
+| **Lazy-generated** | `vector_db/*` on first search/recommend |
+| **Routers** | 7 (search, recommend, repos, profile, advisor, project_explainer, rag) |
+
+No models loaded at startup — lazy on first IR request.
+
 ---
 
-### Step 9 — Profile Recommendation Flow
+## Step 7 — Frontend Startup
 
-**Endpoint:** `POST /profile/recommend`
-
-| Field | Value |
-|---|---|
-| **Input** | `{project_type, language, goal, level, repo_kind, complexity, top_k}` |
-| **Output** | `{count, engine, profile, results[]}` |
-| **Files involved** | `backend/api/profile.py`, `backend/core/profile_loader.py`, `smart_profile_recommender_v2.py` |
-| **Dependencies** | `processed.json` |
-
-**Scoring formula:**
-```
-score = 0.25×project_type + 0.20×language + 0.20×goal + 0.15×level + 0.10×repo_kind + 0.05×complexity + 0.05×profile_keyword
+```bash
+cd frontend && npm install && npm run dev
 ```
 
----
-
-### Step 10 — AI Advisor Summary Flow
-
-**Endpoint:** `POST /api/advisor/summary`
-
-| Field | Value |
+| | |
 |---|---|
-| **Input** | `{query, profile, results[top5]}` |
-| **Output** | `{summary, recommended_repo, roadmap, top_explanations[]}` |
-| **Files involved** | `backend/api/advisor.py`, `backend/core/ai_advisor.py`, `backend/core/repo_explainer.py`, `backend/core/repo_intelligence.py`, `backend/core/roadmap_generator.py` |
+| **URL** | http://localhost:5173 |
+| **Proxy** | `/api` → `http://127.0.0.1:8000` (strips `/api` prefix) |
 
 ---
 
-### Step 11 — Project Explainer Flow
+## Step 8 — Ollama (Optional, for RAG)
 
-**Endpoint:** `POST /api/project-explainer/explain`
+```bash
+ollama serve
+ollama pull qwen2.5:1.5b
+```
 
-| Field | Value |
-|---|---|
-| **Input** | `{repo: {...}, profile, query}` |
-| **Output** | Full structured explanation object |
-| **Files involved** | `backend/api/project_explainer.py`, `backend/core/project_explainer.py` |
+Required for "Explain with AI" and "AI Roadmap" buttons. Rule-based features work without Ollama.
 
-**Output sections:**
-- `repo_identity` (name, url, language, topics, technologies)
-- `project_summary` (auto-generated text)
-- `best_for` (detected primary use case)
-- `difficulty` (beginner/intermediate/advanced)
-- `metrics` (stars, forks, documentation_score, health_score, etc.)
-- `readme_analysis` (preview, detected sections, section snippets)
-- `strengths` and `limitations`
-- `how_to_use_it` (step-by-step)
-- `contribution_guidance`
-- `why_it_matches`
+---
+
+## Online Request Flows
+
+### Search (`POST /search/`)
+
+```
+Input: {query, top_k, filters, profile}
+→ hybrid_search() → GitHubRepoSearchEngine.search()
+→ 0.45×BM25 + 0.45×Semantic + 0.10×Popularity
+→ normalize_search_result() per item
+Output: {query, count, engine, results[]}
+```
+
+### Profile Recommend (`POST /profile/recommend`)
+
+```
+Input: {project_type, language, goal, level, repo_kind, complexity, top_k}
+→ SmartProfileRecommender.recommend_for_profile()
+→ weighted multi-dimensional scoring
+Output: {count, engine, profile, results[]}
+```
+
+### Explain Project (`POST /api/project-explainer/explain`)
+
+```
+Input: {repo, profile, query}
+→ explain_project() — README parsing, scores, sections
+Output: structured JSON (metrics, strengths, how_to_use_it, etc.)
+```
+
+### RAG Explain (`POST /api/rag/explain`)
+
+```
+Input: {repo, query, profile}
+→ build_repo_context() → LLMClient → Ollama
+Output: {mode, model, answer}
+```
+
+### Similar Repos (`POST /recommend/`)
+
+```
+Input: {repo_identifier, top_k, same_language_only}
+→ recommend_similar() → cosine similarity over embeddings
+Output: {repo_identifier, count, results[]}
+```
+
+### AI Advisor Summary (`POST /api/advisor/summary`) — API only
+
+```
+Input: {query, profile, results[top5]}
+→ advise() → enrich, explain, score, summarize
+Output: {summary, recommended_repo, roadmap, top_explanations}
+```
+
+---
+
+## Typical Development Session
+
+```bash
+# Terminal 1 — backend (from project root)
+uvicorn backend.main:app --reload --port 8000
+
+# Terminal 2 — frontend
+cd frontend && npm run dev
+
+# Terminal 3 — Ollama (optional)
+ollama serve
+```
+
+Open http://localhost:5173 → complete profile wizard → search → try repo actions.

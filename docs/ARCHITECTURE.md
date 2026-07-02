@@ -2,12 +2,13 @@
 
 ## Overview
 
-RepoMind AI is a layered system divided into:
+RepoMind AI is a layered system:
 
-1. **Data Pipeline** — scraping, processing, analysis (offline, run once)
-2. **Search Indexing** — BM25 + semantic embeddings (lazy-built, cached)
-3. **FastAPI Backend** — 6 API routers serving all features
-4. **React Frontend** — single-page app talking to the backend over HTTP
+1. **Data Pipeline** — scraping, processing, analysis (offline)
+2. **Search Indexing** — BM25 + semantic embeddings (lazy-built, cached in `vector_db/`)
+3. **FastAPI Backend** — 7 API routers
+4. **React Frontend** — single-page app over HTTP
+5. **Dual AI Layer** — rule-based (instant) + Ollama RAG (optional, local LLM)
 
 ---
 
@@ -16,45 +17,45 @@ RepoMind AI is a layered system divided into:
 ```mermaid
 graph TD
     subgraph Data Pipeline
-        A[scraper.py<br>GitHub API + HTML] -->|new_data.json| B[process.py<br>NLP Processing]
-        B -->|processed.json| C[analysis.py<br>Stats Report]
-        B -->|processed.json| D[quadrant_updater.py<br>Optional Qdrant Upload]
+        A[scraper.py] -->|new_data.json| B[process.py]
+        B -->|processed.json| C[analysis.py]
+        B -->|processed.json| D[quadrant_updater.py<br>Optional Qdrant]
     end
 
-    subgraph Search Index Layer
-        B -->|processed.json| E[GitHubRepoSearchEngine<br>core/search_engine.py]
-        E --> F[BM25Index<br>storage/bm25_index.json]
+    subgraph Search Index
+        B --> E[semantic_hybrid_recommender.py<br>GitHubRepoSearchEngine]
+        E --> F[vector_db/bm25_index.json]
         E --> G[SentenceTransformer<br>all-MiniLM-L6-v2]
-        G --> H[Embeddings<br>storage/repo_embeddings.npy]
-        D --> I[(Qdrant<br>:6333)]
+        G --> H[vector_db/repo_embeddings.npy]
+        D --> I[(Qdrant :6333)]
     end
 
-    subgraph FastAPI Backend - backend/main.py :8000
-        J[/search/] --> K[semantic_loader.py<br>hybrid_search]
+    subgraph FastAPI Backend - :8000
+        J[/search/] --> K[semantic_loader.py]
         L[/recommend/] --> K
-        M[/repos/] --> N[repo_sanitize.py]
-        O[/profile/questions<br>/profile/recommend<br>/profile/search] --> P[profile_loader.py<br>SmartProfileRecommender]
-        Q[/api/advisor/explain<br>/api/advisor/roadmap<br>/api/advisor/compare<br>/api/advisor/summary] --> R[repo_explainer.py<br>roadmap_generator.py<br>repo_comparator.py<br>ai_advisor.py]
-        S[/api/project-explainer/explain] --> T[project_explainer.py]
+        M[/repos/] --> N[repo_utils.py]
+        O[/profile/] --> P[profile_loader.py]
+        Q[/api/advisor/] --> R[repo_explainer + ai_advisor<br>roadmap_generator + repo_comparator]
+        S[/api/project-explainer/] --> T[project_explainer.py]
+        U[/api/rag/] --> V[rag_advisor.py]
+        V --> W[llm_client.py → Ollama :11434]
         K --> E
-        P --> U[smart_profile_recommender_v2.py]
-        R --> V[repo_intelligence.py]
+        P --> X[smart_profile_recommender_v2.py]
+        R --> Y[repo_intelligence.py]
     end
 
     subgraph React Frontend - :5173
-        W[App.jsx<br>Main Application] --> X[SearchBar.jsx]
-        W --> Y[Filters.jsx]
-        W --> Z[RepoCard.jsx]
-        W --> AA[ProfileWizard.jsx]
-        W --> AB[ProjectExplainButton.jsx]
-        W --> AC[RecommendationPanel.jsx]
-        W --> AD[AdvisorSummaryPanel.jsx]
-        W --> AE[RoadmapPanel.jsx]
-        X --> J
-        AA --> O
-        AB --> S
-        AC --> L
-        AD --> Q
+        Z[App.jsx] --> AA[SearchBar + Filters]
+        Z --> AB[ProfileWizard]
+        Z --> AC[RepoCard]
+        AC --> AD[ProjectExplainButton]
+        AC --> AE[RagExplainButton]
+        Z --> AF[RecommendationPanel]
+        AA --> J
+        AB --> O
+        AD --> S
+        AE --> U
+        AF --> L
     end
 ```
 
@@ -62,104 +63,113 @@ graph TD
 
 ## Component Relationships
 
-### Frontend → Backend
+### Frontend → Backend (actively wired in App.jsx)
 
 | Frontend Component | Backend Endpoint | Description |
 |---|---|---|
-| `SearchBar.jsx` | `POST /search/` | Main hybrid search |
-| `Filters.jsx` | `GET /repos/filters/options` | Populate filter dropdowns |
-| `ProfileWizard.jsx` | `GET /profile/questions` | Fetch profile wizard questions |
-| `ProfileWizard.jsx` | `POST /profile/recommend` | Submit profile for recommendations |
-| `RepoCard.jsx` | `POST /api/advisor/explain` | "Explain this repo" |
-| `ProjectExplainButton.jsx` | `POST /api/project-explainer/explain` | Deep project analysis |
+| `SearchBar.jsx` | `POST /search/` | Hybrid search |
+| `Filters.jsx` | `GET /repos/filters/options` | Filter dropdown values |
+| `ProfileWizard.jsx` | `GET /profile/questions` | Wizard questions |
+| `ProfileWizard.jsx` | `POST /profile/recommend` | Profile recommendations |
+| `RepoCard.jsx` | `POST /search/explain` | "Why this result?" score breakdown |
+| `ProjectExplainButton.jsx` | `POST /api/project-explainer/explain` | Rule-based deep analysis |
+| `RagExplainButton.jsx` | `POST /api/rag/explain` | Ollama explanation |
+| `RagExplainButton.jsx` (roadmap mode) | `POST /api/rag/roadmap` | Ollama roadmap |
 | `RecommendationPanel.jsx` | `POST /recommend/` | Similar repos |
-| `AdvisorSummaryPanel.jsx` | `POST /api/advisor/summary` | AI advisor text |
-| `RoadmapPanel.jsx` | `POST /api/advisor/roadmap` | Generate roadmap |
-| `RepoCompareModal.jsx` | `POST /api/advisor/compare` | Compare two repos |
 
-### Backend → Core Engine
+### Frontend → Backend (API exists, UI not mounted in App.jsx)
+
+| Frontend Component | Backend Endpoint | Status |
+|---|---|---|
+| `AdvisorButtons.jsx` | `POST /api/advisor/*` | Component exists, not used in App |
+| `AdvisorSummaryPanel.jsx` | `POST /api/advisor/summary` | Component exists, not used in App |
+| `RoadmapPanel.jsx` | `POST /api/advisor/roadmap` | Component exists, not used in App |
+| `RepoCompareModal.jsx` | `POST /api/advisor/compare` | Component exists, not used in App |
+| `RepoExplainerPanel.jsx` | `POST /api/advisor/explain` | Component exists, not used in App |
+
+---
+
+## Backend Internal Dependencies
 
 ```mermaid
 graph LR
     A[backend/api/search.py] --> B[backend/core/semantic_loader.py]
-    A --> C[backend/core/http_errors.py]
-    B --> D[semantic_hybrid_recommender.py alias]
-    D --> E[core/search_engine.py GitHubRepoSearchEngine]
-    E --> F[BM25Index]
-    E --> G[SentenceTransformer]
+    B --> C[semantic_hybrid_recommender.py]
+    C --> D[GitHubRepoSearchEngine + BM25Index]
 
-    H[backend/api/recommend.py] --> B
-    I[backend/api/profile.py] --> J[backend/core/profile_loader.py]
-    J --> K[smart_profile_recommender_v2.py SmartProfileRecommender]
-    L[backend/api/advisor.py] --> M[backend/core/ai_advisor.py]
-    M --> N[backend/core/repo_explainer.py]
-    M --> O[backend/core/roadmap_generator.py]
-    N --> P[backend/core/repo_intelligence.py]
-    O --> P
-    L --> Q[backend/core/repo_comparator.py]
-    Q --> N
-    R[backend/api/project_explainer.py] --> S[backend/core/project_explainer.py]
+    E[backend/api/profile.py] --> F[backend/core/profile_loader.py]
+    F --> G[smart_profile_recommender_v2.py]
+
+    H[backend/api/advisor.py] --> I[ai_advisor + repo_explainer<br>roadmap_generator + repo_comparator]
+    I --> J[repo_intelligence.py]
+
+    K[backend/api/project_explainer.py] --> L[project_explainer.py]
+
+    M[backend/api/rag.py] --> N[rag_advisor.py]
+    N --> O[llm_client.py → Ollama]
 ```
 
 ---
 
-## Data Flow Description
+## Data Flows
 
 ### Search Flow
+
 ```
-User types query
+User types query (+ optional profile)
 → POST /search/ {query, filters, profile}
 → semantic_loader.hybrid_search()
-→ Profile query enrichment (optional)
+→ Profile query enrichment (unless query-only mode on frontend)
 → GitHubRepoSearchEngine.search()
-  → BM25 scores (lexical)
-  → Semantic cosine scores (embedding)
-  → Popularity scores (log stars+forks)
+  → BM25 scores (lexical, min-max normalized)
+  → Semantic cosine scores (embedding similarity)
+  → Popularity scores (log stars + forks)
   → Weighted combination + filter pass
 → normalize_search_result()
-→ Return ranked list to frontend
+→ Ranked list to frontend
 ```
 
 ### Profile Recommendation Flow
+
 ```
 User completes ProfileWizard
-→ GET /profile/questions → returns question options from smart_profile_options.json
+→ GET /profile/questions (from smart_profile_options.json)
 → POST /profile/recommend {project_type, language, goal, level, repo_kind, complexity}
 → SmartProfileRecommender.recommend_for_profile()
-  → project_type_score (topic matching)
-  → language_score
-  → signal_score (goal, level, repo_kind)
-  → complexity_score (README length, topic count)
-  → Weighted combination
-→ Return sorted results
+  → Multi-dimensional weighted scoring
+→ Sorted results with why_recommended + score_breakdown
 ```
 
-### AI Advisor Flow
-```
-User clicks "Get AI Advice" after search
-→ POST /api/advisor/summary {query, profile, results[top5]}
-→ ai_advisor.advise()
-  → For each result: normalize_result_item() → explain_repo() → _advisor_score()
-  → Sort by advisor_score
-  → build_summary() → generate_roadmap() for best repo
-→ Return: summary text, recommended repo, top explanations, roadmap
-```
+### Rule-Based Project Explainer Flow
 
-### Repo Explainer Flow
 ```
-User clicks "Explain this repo"
+User clicks "Explain Project"
 → POST /api/project-explainer/explain {repo, profile, query}
 → project_explainer.explain_project()
-  → normalize_repo() (multi-format normalization)
-  → extract_readme_sections() (heading detection)
-  → extract_section_snippets() (snippet extraction)
-  → extract_tech_stack() (tech keyword matching)
-  → calculate_documentation_score()
-  → calculate_contribution_score()
-  → calculate_health_score()
-  → infer_difficulty()
-  → infer_repo_intents()
-→ Return structured explanation with all sections
+  → README section detection + snippet extraction
+  → Tech stack keyword matching
+  → Documentation / contribution / health scores
+  → Structured response (metrics, strengths, how_to_use_it, etc.)
+```
+
+### Ollama RAG Flow
+
+```
+User clicks "Explain with AI" or "AI Roadmap"
+→ POST /api/rag/explain or /api/rag/roadmap {repo, query, profile}
+→ rag_advisor.build_repo_context() — serializes repo fields + README
+→ LLMClient.generate() → Ollama /api/chat
+→ Natural-language answer (mode: "rag_ollama")
+```
+
+### AI Advisor Summary Flow (API only, not in main UI)
+
+```
+POST /api/advisor/summary {query, profile, results[top5]}
+→ ai_advisor.advise()
+  → enrich + explain each result
+  → advisor_score ranking
+  → build_summary() + roadmap for best repo
 ```
 
 ---
@@ -168,9 +178,26 @@ User clicks "Explain this repo"
 
 | Decision | Rationale |
 |---|---|
-| No LLM in production | All AI features are template/rule-based; no hallucinations, no API cost, instant response |
-| Dual index location | `storage/` (used by backend) and `vector_db/` (alternative) — indexes are rebuilt lazily |
-| Singleton pattern for engines | `_hybrid` and `_recommender` globals in loaders prevent re-loading models per request |
-| Qdrant optional | The main search engine uses local `.npy` + `.json` indexes; Qdrant is an optional upgrade path |
-| `repo_utils.py` at root | Imported by both `backend/core/` modules and data pipeline scripts; placed at root to avoid package boundary issues |
-| `semantic_hybrid_recommender.py` alias | `SemanticHybridRecommender = GitHubRepoSearchEngine` at end of `core/search_engine.py` for backwards compatibility |
+| Dual AI: rule-based + Ollama | Rule-based is instant and deterministic; Ollama adds natural language when available locally |
+| No cloud LLM API | RAG uses local Ollama — no API keys, no cost, data stays local |
+| Search engine at project root | `semantic_hybrid_recommender.py` is both the engine and CLI; imported as `SemanticHybridRecommender` alias |
+| Singleton loaders | `_hybrid` and `_recommender` globals prevent reloading models per request |
+| Index in `vector_db/` | Single canonical index directory (fingerprint-based cache invalidation) |
+| `repo_utils.py` at root | Shared between backend and data pipeline without package boundary issues |
+| Lazy index build | Fast startup; first search pays the embedding cost (~1–5 min) |
+| Profile stored in localStorage | No auth required; profile persists across sessions |
+| Qdrant optional | Main search uses local NumPy; Qdrant is an upgrade path only |
+| Postgres in docker-compose | Prepared for future persistence; not connected to app code yet |
+
+---
+
+## AI System Comparison
+
+| Aspect | Rule-Based (`/api/advisor`, `/api/project-explainer`) | Ollama RAG (`/api/rag`) |
+|---|---|---|
+| Speed | Instant (<100ms) | Slow (5–60s depending on model/hardware) |
+| External deps | None | Ollama server running locally |
+| Output format | Structured JSON | Free-text markdown-like answer |
+| Hallucination risk | Low (template-driven) | Mitigated by "use ONLY provided data" prompt |
+| Used in main UI | Explain Project button | Explain with AI + AI Roadmap buttons |
+| Best for | Metrics, sections, score interpretation | Narrative explanations, personalized roadmaps |

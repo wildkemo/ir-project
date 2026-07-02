@@ -2,257 +2,295 @@
 
 ## Overview
 
-RepoMind AI uses a **fully template/rule-based AI pipeline** — no LLM, no external AI API, no hallucination risk. All AI features are grounded in repository metadata and README content.
+RepoMind AI has **two complementary AI systems**:
 
-The pipeline has two phases:
-1. **Offline** — Embedding generation (runs once, cached)
-2. **Online** — Per-request scoring, enrichment, explanation, roadmap generation
+1. **Rule-based pipeline** — template/keyword-driven, instant, no external services
+2. **Ollama RAG pipeline** — local LLM with grounded repo context, requires Ollama server
+
+The IR search layer (BM25 + embeddings) is separate from both AI layers.
 
 ---
 
-## AI Pipeline Architecture
+## Full Pipeline Architecture
 
 ```mermaid
 flowchart TD
     subgraph Offline - Run Once
-        A[processed.json] --> B[GitHubRepoSearchEngine]
-        B --> C[SentenceTransformer\nall-MiniLM-L6-v2]
-        C --> D[repo_embeddings.npy\n384-dim float32 matrix]
-        B --> E[BM25Index\nbm25_index.json]
+        A[processed.json] --> B[GitHubRepoSearchEngine<br>semantic_hybrid_recommender.py]
+        B --> C[SentenceTransformer all-MiniLM-L6-v2]
+        C --> D[vector_db/repo_embeddings.npy]
+        B --> E[vector_db/bm25_index.json]
     end
 
-    subgraph Online - Per Request
-        F[User Query] --> G[Query Normalization\nnormalize_text]
+    subgraph Online - Search
+        F[User Query] --> G[normalize_text + tokenize]
         G --> H{Profile?}
-        H -->|Yes| I[Query Enrichment\n_enrich_query]
+        H -->|Yes| I[_enrich_query]
         H -->|No| J[Raw Query]
-        I --> K[BM25 Scores\nmin-max normalized]
+        I --> K[BM25 + Semantic + Popularity]
         J --> K
-        I --> L[Semantic Scores\ncosine similarity]
-        J --> L
-        M[Popularity Scores\nlog stars+forks] --> N[Weighted Sum\n0.45 BM25 + 0.45 Semantic + 0.10 Popularity]
-        K --> N
-        L --> N
-        N --> O[Filter Pass\nlanguage, topic, license, min_stars]
-        O --> P[Top-K Results]
-        P --> Q[normalize_search_result\nfield mapping]
+        K --> L[Top-K Results]
     end
 
-    subgraph AI Advisor Pipeline
-        P --> R[advise\nai_advisor.py]
-        R --> S[normalize_result_item\nrepo_intelligence.py]
-        S --> T[enrich_repo\ntech stack, README sections, scores]
-        T --> U[explain_repo\nrepo_explainer.py]
-        U --> V[advisor_score\nweighted multi-dim]
-        V --> W[Sort by advisor_score]
-        W --> X[build_summary\ntemplate text]
-        W --> Y[generate_roadmap\ngoal-aware steps]
+    subgraph Rule-Based AI
+        L --> M[repo_intelligence.enrich_repo]
+        M --> N[repo_explainer / project_explainer]
+        N --> O[roadmap_generator / ai_advisor]
+    end
+
+    subgraph Ollama RAG
+        P[Repo + Query + Profile] --> Q[build_repo_context]
+        Q --> R[LLMClient → Ollama /api/chat]
+        R --> S[Natural language answer]
     end
 ```
 
 ---
 
-## Stage 1 — Embeddings
+## Part 1 — Search Index (Offline + Lazy)
 
-**File:** `core/search_engine.py` → `GitHubRepoSearchEngine._load_or_build_embeddings()`
+### Embeddings
 
-**Model:** `sentence-transformers/all-MiniLM-L6-v2`
-- Dimensions: 384
-- Normalized: Yes (`normalize_embeddings=True`)
-- Stored as: `storage/repo_embeddings.npy` (float32)
+**File:** `semantic_hybrid_recommender.py` → `GitHubRepoSearchEngine._load_or_build_embeddings()`
+
+| Setting | Value |
+|---|---|
+| Model | `sentence-transformers/all-MiniLM-L6-v2` |
+| Dimensions | 384 |
+| Normalized | Yes (`normalize_embeddings=True`) |
+| Storage | `vector_db/repo_embeddings.npy` (float32) |
+| Batch size | 32 repos per encode |
+| Cache key | SHA-256 fingerprint of dataset |
 
 **Input text per repo (`_repo_text()`):**
+
 ```
 Repository: {full_name}
 Title: {title}
 Description: {description}
 Language: {language}
-Topics: {topics joined}
+Topics: {topics}
 License: {license}
 README: {readme[:4000]}
 Tokens: {processed_tokens[:2500]}
 ```
 
-**Caching:** SHA-256 fingerprint of dataset → skip rebuild if fingerprint matches.
+### BM25 Index
 
-**Batch size:** 32 repos per encode call.
+**File:** `semantic_hybrid_recommender.py` → `BM25Index`
 
----
+| Parameter | Value |
+|---|---|
+| Algorithm | Okapi BM25 (pure Python) |
+| k1 | 1.5 |
+| b | 0.75 |
+| IDF | `log(1 + (N - df + 0.5) / (df + 0.5))` |
+| Storage | `vector_db/bm25_index.json` |
 
-## Stage 2 — BM25 Index
-
-**File:** `core/search_engine.py` → `BM25Index`
-
-**Algorithm:** BM25 (Okapi BM25) — pure Python implementation.
-- k1 = 1.5
-- b = 0.75
-- IDF formula: `log(1 + (N - df + 0.5) / (df + 0.5))`
-
-**Stored as:** `storage/bm25_index.json` (~4.5 MB)
-
-**Tokenization:** `tokenize()` function — regex word extraction, lowercase, strip punctuation, remove default stopwords (`a`, `an`, `the`, `github`, `repo`, etc.).
+**Tokenization:** Regex word extraction, lowercase, default stopwords removed.
 
 ---
 
-## Stage 3 — Hybrid Search Scoring
+## Part 2 — Hybrid Search Scoring (Online)
 
-**File:** `core/search_engine.py` → `GitHubRepoSearchEngine.search()`
+**File:** `semantic_hybrid_recommender.py` → `GitHubRepoSearchEngine.search()`
 
-**Scoring formula:**
 ```
-final_score = 0.45 × BM25_normalized + 0.45 × Semantic_cosine_normalized + 0.10 × Popularity_normalized
+final_score = 0.45 × BM25_norm + 0.45 × Semantic_norm + 0.10 × Popularity_norm
 ```
 
-**BM25 scores:** Raw BM25 scores → min-max normalized to [0, 1]
+| Component | Method |
+|---|---|
+| BM25 | Raw scores → min-max normalized to [0, 1] |
+| Semantic | Cosine similarity → shifted: `(cosine + 1) / 2` |
+| Popularity | `log1p(stars) + 0.35 × log1p(forks)` → min-max normalized |
+| Weak match filter | Excludes results where `bm25 ≤ 0 AND semantic < 0.52` |
 
-**Semantic scores:** Cosine similarity between query embedding and repo embeddings → shifted from [-1, 1] to [0, 1] via `(cosine + 1) / 2`
+### Profile Query Enrichment
 
-**Popularity scores:** `log1p(stars) + 0.35 × log1p(forks)` → min-max normalized
+**Files:** `backend/core/semantic_loader.py` → `_enrich_query()`, `smart_profile_recommender_v2.py`
 
-**Weak match filter:** Results where `bm25 ≤ 0 AND semantic < 0.52` are excluded (prevents irrelevant semantic-only matches).
-
----
-
-## Stage 4 — Profile-Based Query Enrichment
-
-**File:** `backend/core/semantic_loader.py` → `_enrich_query()`
-
-**File:** `smart_profile_recommender_v2.py` → `UserProfile.to_profile_query()`
-
-When a user profile is provided:
-1. `expand_topics_from_project_type()` — maps `project_type` to topic keywords
-2. `to_profile_query()` — concatenates: `{language} {topics} {goal} {level} {repo_kind} {complexity}`
+When profile is provided:
+1. `expand_topics_from_project_type()` maps project type to topic keywords
+2. `to_profile_query()` concatenates language, topics, goal, level, repo_kind, complexity
 3. Enriched query = `"{original_query} {profile_query}"`
 
-Example: `"image processing"` + profile `{language: Python, project_type: ai_ml, goal: learning}` → `"image processing python machine-learning ai deep-learning learning"`
-
 ---
 
-## Stage 5 — Profile Recommendation (No Query)
+## Part 3 — Profile Recommendation (No Query)
 
 **File:** `smart_profile_recommender_v2.py` → `SmartProfileRecommender.recommend_for_profile()`
 
-Multi-dimensional scoring without a search query:
-
-| Score Component | Weight | Method |
+| Component | Weight | Method |
 |---|---|---|
-| Project Type | 25% | Topic intersection between profile topics and repo doc terms |
-| Language | 20% | Exact match → 1.0, secondary language → 0.7 |
-| Goal | 20% | Signal keyword matching against doc terms and text blob |
+| Project Type | 25% | Topic intersection with doc terms |
+| Language | 20% | Exact match → 1.0, secondary → 0.7 |
+| Goal | 20% | Signal keyword matching |
 | Level | 15% | Signal keyword matching |
 | Repo Kind | 10% | Signal keyword matching |
-| Complexity | 5% | README length + topic count + language count heuristic |
+| Complexity | 5% | README length + topic count heuristic |
 | Profile Keyword | 5% | BM25-like keyword coverage |
+
+### Personalized Search Weights (query + profile)
+
+```
+final = 0.60×query + 0.10×project_type + 0.10×language + 0.08×goal
+      + 0.05×level + 0.04×repo_kind + 0.03×complexity
+```
 
 ---
 
-## Stage 6 — Repository Enrichment
+## Part 4 — Rule-Based Repository Intelligence
 
 **File:** `backend/core/repo_intelligence.py` → `enrich_repo()`
 
-Every repository going through the Advisor pipeline is enriched with computed features:
-
 | Feature | Method |
 |---|---|
-| `tech_stack` | Regex keyword matching against 30+ technology aliases in combined text |
-| `readme_sections` | Heading-based section detection (installation, usage, examples, contributing, license, api, testing, deployment, security) |
-| `documentation_score` | Weighted sum of README length + present sections |
-| `contribution_score` | Contribution keyword matching + contributing section presence + open issues count |
-| `health_score` | Composite: 25% documentation + 10% contribution + 20% stars + 10% forks + 20% activity + 15% quality |
-| `difficulty` | Heuristic: beginner/advanced keyword ratios + tech stack count |
-| `repo_intents` | Keyword scoring for: learning, contribution, production, research, tool_usage, portfolio |
+| `tech_stack` | Regex keyword matching (30+ technology aliases) |
+| `readme_sections` | Heading detection: installation, usage, examples, contributing, license, api, testing, deployment, security |
+| `documentation_score` | README length + present sections (weighted) |
+| `contribution_score` | Contribution keywords + contributing section + open issues |
+| `health_score` | Composite: 25% docs + 10% contribution + 20% stars + 10% forks + 20% activity + 15% quality |
+| `difficulty` | Beginner/advanced keyword ratios + tech stack count |
+| `repo_intents` | Scores for: learning, contribution, production, research, tool_usage, portfolio |
 
----
+### Repo Explainer (`repo_explainer.py`)
 
-## Stage 7 — Repository Explanation
-
-**File:** `backend/core/repo_explainer.py` → `explain_repo()`
-
-Generates a structured per-repo explanation:
-
-| Output Field | Source |
+| Output | Source |
 |---|---|
-| `summary` | Template: `"{name} is a {language} repo related to {topics}. Description: {desc}. Technologies: {tech_stack}"` |
-| `best_for` | Intent + profile goal matching (learning / contribution / production / research / tool / portfolio) |
-| `difficulty` | From `enrich_repo()` |
-| `strengths` | Up to 6 positive signals from scores, sections, query matches |
-| `weaknesses` | Up to 5 negative signals from low scores and missing sections |
-| `why_recommended` | Combined: query match, BM25/semantic scores, profile language match, goal-intent match |
+| `summary` | Template from name, language, topics, description, tech stack |
+| `best_for` | Intent + profile goal matching |
+| `strengths` / `weaknesses` | Up to 6 positive / 5 negative signals |
+| `why_recommended` | Query match, BM25/semantic scores, profile alignment |
 | `roadmap` | From `roadmap_generator.generate_roadmap()` |
 
----
+### Project Explainer (`project_explainer.py`)
 
-## Stage 8 — Deep Project Explanation
+Adds over repo_explainer:
+- `readme_preview` (first 700 chars, markdown stripped)
+- `section_snippets` (actual text from each README section)
+- `how_to_use_it`, `contribution_guidance`
+- `scores_interpretation` (Strong/Medium/Limited/Weak labels)
+- Full `metrics` block
 
-**File:** `backend/core/project_explainer.py` → `explain_project()`
+### Roadmap Generator (`roadmap_generator.py`)
 
-More detailed than `repo_explainer.py`, adds:
-
-| Output Field | Source |
-|---|---|
-| `readme_preview` | First 700 chars of cleaned README (markdown stripped) |
-| `section_snippets` | Actual text content extracted from each README section heading |
-| `how_to_use_it` | Step-by-step usage guide derived from detected sections |
-| `contribution_guidance` | Contribution steps derived from contributing section + score |
-| `scores_interpretation` | Label ("Strong"/"Medium"/"Limited"/"Weak") for each score |
-| `metrics` | All raw numeric metrics including `contributors_count`, `open_issues`, `watchers` |
-
----
-
-## Stage 9 — Roadmap Generation
-
-**File:** `backend/core/roadmap_generator.py` → `generate_roadmap()`
-
-Goal-aware routing:
-
-| User Goal Contains | Roadmap Type | Steps |
+| Goal contains | Type | Steps focus |
 |---|---|---|
-| "learn" or "education" | `learning` | README → install → run example → study structure → modify → compare |
-| "contribut" or "open-source" | `contribution` | README → install → contributing guide → find issues → run tests → open PR |
-| "production" or "use" or "tool" | `production` | README → install → check license/health → review tests → deploy instructions → prototype |
-| "portfolio" or "project" | `portfolio` | README → fork → customize → document → deploy → case study |
-| (fallback by intent) | `general` | README → install → run → explore → try change |
+| learn, education | `learning` | README → install → example → study → modify |
+| contribut, open-source | `contribution` | README → install → contributing → issues → PR |
+| production, use, tool | `production` | README → install → license → tests → deploy |
+| portfolio, project | `portfolio` | README → fork → customize → document → deploy |
+| fallback | `general` | README → install → run → explore |
 
-All roadmaps start with `_common_start()` which detects installation/usage/example sections.
+### AI Advisor (`ai_advisor.py`)
 
----
+For top-K search results:
 
-## Stage 10 — AI Advisor Multi-Repo Summary
+```
+advisor_score = 0.35×final_search_score + 0.15×semantic + 0.10×profile
+              + 0.15×documentation + 0.15×health + goal_bonus
+```
 
-**File:** `backend/core/ai_advisor.py` → `advise()`
-
-For the top-K search results:
-
-1. Each result is normalized via `normalize_result_item()` → `enrich_repo()`
-2. Each repo is explained via `explain_repo()`
-3. An `_advisor_score()` is computed:
-   ```
-   score = 0.35 × final_search_score
-         + 0.15 × semantic_score
-         + 0.10 × profile_score
-         + 0.15 × documentation_score
-         + 0.15 × health_score
-         + [goal-specific bonus: learning/contribution/production intent]
-   ```
-4. Results are sorted by `advisor_score`
-5. Best repo is selected; roadmap is generated for it
-6. `build_summary()` produces a natural language advisory paragraph
+Sorts by `advisor_score`, generates summary text and roadmap for best repo.
 
 ---
 
-## AI Pipeline Summary Table
+## Part 5 — Ollama RAG Pipeline
 
-| Stage | File | LLM? | Output |
+**Files:** `backend/core/rag_advisor.py`, `backend/core/llm_client.py`, `backend/api/rag.py`
+
+### Context Building
+
+`build_repo_context()` serializes into a single prompt block:
+
+- User query and profile
+- Repository metadata (name, URL, description, language, topics, stars, forks, license, dates)
+- Search scores and breakdown
+- Full README text from the repo object
+
+### LLM Client
+
+**File:** `backend/core/llm_client.py`
+
+| Setting | Env var | Default |
+|---|---|---|
+| Ollama URL | `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` |
+| Model | `OLLAMA_MODEL` | `qwen2.5:1.5b` |
+| Temperature | hardcoded | 0.2 |
+| Max tokens | hardcoded | 800–900 |
+| Timeout | hardcoded | 180 seconds |
+
+Calls `POST {OLLAMA_BASE_URL}/api/chat` with `stream: false`.
+
+### Explain Prompt Structure
+
+System: "Use ONLY the provided repository data. Do not invent missing details."
+
+User requests 8 sections:
+1. Short Summary
+2. What this repository is useful for
+3. Main technologies
+4. Why it matches user query/profile
+5. Strengths
+6. Limitations or missing data
+7. How to start with it
+8. Final recommendation
+
+### Roadmap Prompt Structure
+
+User requests 8 sections:
+1. Roadmap Goal
+2. Before You Start
+3. Step-by-Step Roadmap
+4. What to focus on in the README
+5. Small project/task to try
+6. Contribution path if possible
+7. Missing data or risks
+8. Next step
+
+### Response Shape
+
+```json
+{
+  "mode": "rag_ollama",
+  "model": "qwen2.5:1.5b",
+  "answer": "... free text ..."
+}
+```
+
+Frontend (`RagAnswerModal.jsx`) renders `answer` as paragraphs/headings.
+
+---
+
+## Pipeline Summary Table
+
+| Stage | File | External deps | Output |
 |---|---|---|---|
-| Embeddings | `core/search_engine.py` | No (ST model) | `repo_embeddings.npy` |
-| BM25 Index | `core/search_engine.py` | No | `bm25_index.json` |
-| Hybrid Search | `core/search_engine.py` | No | Ranked result list |
-| Query Enrichment | `smart_profile_recommender_v2.py` | No | Expanded query string |
-| Profile Recommend | `smart_profile_recommender_v2.py` | No | Profile-matched repos |
-| Repo Enrichment | `backend/core/repo_intelligence.py` | No | Enriched repo dict |
-| Repo Explanation | `backend/core/repo_explainer.py` | No | Structured explanation |
-| Project Explainer | `backend/core/project_explainer.py` | No | Deep README analysis |
-| Roadmap | `backend/core/roadmap_generator.py` | No | Ordered step list |
-| Advisor Summary | `backend/core/ai_advisor.py` | No | Advisory paragraph |
+| Embeddings | `semantic_hybrid_recommender.py` | sentence-transformers | `vector_db/repo_embeddings.npy` |
+| BM25 | `semantic_hybrid_recommender.py` | None | `vector_db/bm25_index.json` |
+| Hybrid Search | `semantic_hybrid_recommender.py` | ST model (loaded) | Ranked results |
+| Query Enrichment | `smart_profile_recommender_v2.py` | None | Expanded query |
+| Profile Recommend | `smart_profile_recommender_v2.py` | None | Profile-matched repos |
+| Repo Enrichment | `repo_intelligence.py` | None | Enriched repo dict |
+| Repo Explanation | `repo_explainer.py` | None | Structured JSON |
+| Project Explainer | `project_explainer.py` | None | Deep structured JSON |
+| Roadmap | `roadmap_generator.py` | None | Step list |
+| Advisor Summary | `ai_advisor.py` | None | Advisory paragraph |
+| RAG Explain/Roadmap | `rag_advisor.py` | Ollama | Free-text answer |
 
-> **Design Decision:** All AI is intentionally template/rule-based. The codebase contains a `core/rag_advisor.py` stub that was planned for LLM/RAG integration but is currently unused. The system is designed to be upgradeable to a RAG architecture without changing the API contract.
+---
+
+## Setting Up Ollama for RAG
+
+```bash
+# Install Ollama (https://ollama.com), then:
+ollama serve
+ollama pull qwen2.5:1.5b
+
+# Optional env overrides in .env:
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=qwen2.5:1.5b
+```
+
+If Ollama is not running, RAG endpoints return HTTP 500. Rule-based features continue to work.

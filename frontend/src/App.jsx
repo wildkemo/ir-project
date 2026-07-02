@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScanSearch, Zap, Sparkles, Layers, RotateCcw } from 'lucide-react';
+import { ScanSearch, Zap, Sparkles, Layers, RotateCcw, LogIn, LogOut, User, Heart, Clock } from 'lucide-react';
 import {
   searchRepos,
   recommendRepos,
@@ -9,6 +9,7 @@ import {
   getApiErrorMessage,
   API_BASE_URL,
 } from './api/client';
+import { useAuth } from './context/AuthContext';
 import { useTheme } from './hooks/useTheme';
 import { loadStoredProfile, saveStoredProfile, clearStoredProfile } from './utils/profileStorage';
 import { filterReposOnly, getRepoDisplayName } from './utils/repoDisplay';
@@ -21,6 +22,11 @@ import RecommendationPanel from './components/RecommendationPanel';
 import LoadingState from './components/LoadingState';
 import EmptyState from './components/EmptyState';
 import ThemeToggle from './components/ThemeToggle';
+import LoginPage from './components/LoginPage';
+import RegisterPage from './components/RegisterPage';
+import UserProfilePanel from './components/UserProfilePanel';
+import FavoritesPanel from './components/FavoritesPanel';
+import HistoryPanel from './components/HistoryPanel';
 import './App.css';
 
 const DEFAULT_FILTERS = {
@@ -35,6 +41,8 @@ const PROFILE_TOP_K = 10;
 
 export default function App() {
   const { theme, toggleTheme } = useTheme();
+  const { user, isAuthenticated, logout } = useAuth();
+  const [view, setView] = useState('home');
 
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
@@ -257,6 +265,7 @@ export default function App() {
   };
 
   const showPanel = selectedRepo || recommendLoading;
+  const showUserView = ['login', 'register', 'profile', 'favorites', 'history'].includes(view);
 
   return (
     <div className="app">
@@ -267,6 +276,70 @@ export default function App() {
         </div>
 
         <div className="top-bar__actions">
+          <nav className="top-nav" aria-label="Account navigation">
+            {isAuthenticated ? (
+              <>
+                <button
+                  type="button"
+                  className={`btn btn--ghost btn--sm ${view === 'profile' ? 'btn--active' : ''}`}
+                  onClick={() => setView('profile')}
+                >
+                  <User size={14} aria-hidden />
+                  {user?.username}
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn--ghost btn--sm ${view === 'favorites' ? 'btn--active' : ''}`}
+                  onClick={() => setView('favorites')}
+                >
+                  <Heart size={14} aria-hidden />
+                  Favorites
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn--ghost btn--sm ${view === 'history' ? 'btn--active' : ''}`}
+                  onClick={() => setView('history')}
+                >
+                  <Clock size={14} aria-hidden />
+                  History
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  onClick={() => {
+                    logout();
+                    setView('home');
+                  }}
+                >
+                  <LogOut size={14} aria-hidden />
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className={`btn btn--ghost btn--sm ${view === 'login' ? 'btn--active' : ''}`}
+                  onClick={() => setView('login')}
+                >
+                  <LogIn size={14} aria-hidden />
+                  Login
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn--secondary btn--sm ${view === 'register' ? 'btn--active' : ''}`}
+                  onClick={() => setView('register')}
+                >
+                  Register
+                </button>
+              </>
+            )}
+            {showUserView && view !== 'home' && (
+              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setView('home')}>
+                Back to search
+              </button>
+            )}
+          </nav>
           {apiOnline === true && (
             <span className="status-pill status-pill--online" title="API connected">
               <span className="status-pill__dot" aria-hidden />
@@ -380,6 +453,17 @@ export default function App() {
       )}
 
       <main className={`main-layout ${showPanel ? 'main-layout--with-panel' : ''}`}>
+        {view === 'login' && (
+          <LoginPage onSwitchToRegister={() => setView('register')} onSuccess={() => setView('home')} />
+        )}
+        {view === 'register' && (
+          <RegisterPage onSwitchToLogin={() => setView('login')} onSuccess={() => setView('login')} />
+        )}
+        {view === 'profile' && isAuthenticated && <UserProfilePanel />}
+        {view === 'favorites' && isAuthenticated && <FavoritesPanel />}
+        {view === 'history' && isAuthenticated && <HistoryPanel />}
+
+        {view === 'home' && (
         <section className="results-section" aria-live="polite">
           {showProfileWizard && !profileComplete && (
             <ProfileWizard
@@ -496,6 +580,7 @@ export default function App() {
             <EmptyState variant="initial" />
           )}
         </section>
+        )}
 
         {showPanel && (
           <RecommendationPanel
