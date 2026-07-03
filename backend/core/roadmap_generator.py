@@ -22,22 +22,27 @@ def _level(profile: Optional[Dict[str, Any]]) -> str:
 
 def _common_start(repo: Dict[str, Any]) -> List[str]:
     repo = enrich_repo(repo)
+    name = get_repo_name(repo)
+    lang = repo.get("language") or "the project's primary language"
+    topics = ", ".join((repo.get("topics") or [])[:4]) or "its core domain"
     sections = repo.get("readme_sections", {})
-    steps = [f"Start by reading the README to understand what {get_repo_name(repo)} does."]
+    steps = [f"Read the README for **{name}** to understand how it relates to {topics}."]
 
     if sections.get("installation"):
-        steps.append("Follow the installation/setup section and run the project locally.")
+        steps.append(f"Follow the installation/setup instructions for this {lang} project and run it locally.")
     else:
-        steps.append("Look for setup requirements in the README, package files, or documentation.")
+        steps.append(f"Find setup requirements for **{name}** (package files, env vars, or docs) and get a minimal run working.")
 
     if sections.get("usage") or sections.get("examples"):
-        steps.append("Run the provided usage example, demo, or sample command.")
+        steps.append(f"Run an example from **{name}** to see {lang} patterns in practice.")
     else:
-        steps.append("Identify the main entry point and try to run a minimal example.")
+        steps.append(f"Locate the main entry point in **{name}** and execute the smallest possible workflow.")
 
     tech_stack = repo.get("tech_stack", [])
     if tech_stack:
-        steps.append(f"Review the main technologies used: {', '.join(tech_stack[:5])}.")
+        steps.append(f"Review technologies detected in **{name}**: {', '.join(tech_stack[:5])}.")
+    elif lang:
+        steps.append(f"Focus on how **{lang}** is used throughout **{name}**.")
 
     return steps
 

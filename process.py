@@ -259,110 +259,161 @@ def normalize_item(item):
     return item
 
 
+    return item
+
+
+def _processed_record_key(record: dict) -> str | None:
+    full_name = (record.get("full_name") or "").strip().lower()
+    if full_name and "/" in full_name:
+        return full_name
+    url = (record.get("url") or "").strip().rstrip("/").lower()
+    if url and "github.com/" in url:
+        parts = url.split("github.com/", 1)[-1].strip("/").split("/")
+        if len(parts) >= 2:
+            return f"{parts[0]}/{parts[1]}".lower()
+    owner = (record.get("owner") or "").strip().lower()
+    repo = (record.get("repo") or record.get("name") or "").strip().lower()
+    if owner and repo:
+        return f"{owner}/{repo}"
+    return None
+
+
+def process_single_item(item: dict) -> dict:
+    item = normalize_item(item)
+
+    title = (
+        item.get("title")
+        or item.get("name")
+        or item.get("repo")
+        or item.get("full_name")
+        or ""
+    )
+
+    description = item.get("description", "")
+    readme = item.get("readme", "")
+
+    title_tokens = clean_text(title)
+    desc_tokens = clean_text(description)
+    readme_tokens = clean_text(readme)
+    meta_tokens = process_metadata(item)
+    pop_tokens = popularity_tokens(item)
+
+    all_tokens = (
+        title_tokens * 5 +
+        desc_tokens * 3 +
+        meta_tokens * 3 +
+        readme_tokens +
+        pop_tokens
+    )
+
+    popularity_score = compute_popularity_score(item)
+    activity_score = compute_activity_score(item)
+    quality_score = compute_quality_score(item)
+
+    return {
+        "id": item.get("id"),
+        "url": item.get("url"),
+        "owner": item.get("owner"),
+        "repo": item.get("repo"),
+        "name": item.get("name") or title,
+        "title": title,
+        "full_name": item.get("full_name"),
+
+        "description": description,
+        "language": item.get("language"),
+        "languages": item.get("languages", {}),
+        "topics": item.get("topics", []),
+        "license": item.get("license"),
+
+        "stars": item["stars"],
+        "forks": item["forks"],
+        "watchers": item["watchers"],
+        "issues": item["issues"],
+        "open_issues": item["open_issues"],
+
+        "created_at": item.get("created_at"),
+        "updated_at": item.get("updated_at"),
+        "pushed_at": item.get("pushed_at"),
+
+        "has_readme": bool(readme),
+        "readme_length": len(readme),
+
+        "tokens": all_tokens,
+        "title_tokens": title_tokens,
+        "desc_tokens": desc_tokens,
+        "readme_tokens": readme_tokens,
+        "meta_tokens": meta_tokens,
+        "pop_tokens": pop_tokens,
+        "doc_length": len(all_tokens),
+
+        "popularity_score": popularity_score,
+        "activity_score": activity_score,
+        "quality_score": quality_score,
+
+        "processed_text": " ".join(all_tokens),
+    }
+
+
+def load_existing_processed(output_file: str = "processed.json") -> dict[str, dict]:
+    try:
+        with open(output_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+    if not isinstance(data, list):
+        return {}
+
+    merged: dict[str, dict] = {}
+    for record in data:
+        if not isinstance(record, dict):
+            continue
+        key = _processed_record_key(record)
+        if key:
+            merged[key] = record
+    return merged
+
+
 # =========================
 # MAIN PIPELINE
 # =========================
 def process_data(
     input_file="new_data.json",
-    output_file="processed.json"
+    output_file="processed.json",
+    merge_existing=True,
 ):
-    with open(input_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    try:
+        with open(input_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        data = []
 
-    processed = []
+    if not isinstance(data, list):
+        data = []
+
+    existing = load_existing_processed(output_file) if merge_existing else {}
+    before_count = len(existing)
+    updated = 0
 
     for item in data:
-        item = normalize_item(item)
+        if not isinstance(item, dict):
+            continue
+        processed_item = process_single_item(item)
+        key = _processed_record_key(processed_item)
+        if not key:
+            continue
+        if key not in existing:
+            updated += 1
+        existing[key] = processed_item
 
-        # Works with old and new schema
-        title = (
-            item.get("title")
-            or item.get("name")
-            or item.get("repo")
-            or item.get("full_name")
-            or ""
-        )
-
-        description = item.get("description", "")
-        readme = item.get("readme", "")
-
-        # =========================
-        # FIELD TOKENS
-        # =========================
-        title_tokens = clean_text(title)
-        desc_tokens = clean_text(description)
-        readme_tokens = clean_text(readme)
-        meta_tokens = process_metadata(item)
-        pop_tokens = popularity_tokens(item)
-
-        # =========================
-        # WEIGHTED IR DOCUMENT
-        # =========================
-        all_tokens = (
-            title_tokens * 5 +
-            desc_tokens * 3 +
-            meta_tokens * 3 +
-            readme_tokens +
-            pop_tokens
-        )
-
-        # =========================
-        # NUMERIC FEATURES
-        # =========================
-        popularity_score = compute_popularity_score(item)
-        activity_score = compute_activity_score(item)
-        quality_score = compute_quality_score(item)
-
-        processed.append({
-            "id": item.get("id"),
-            "url": item.get("url"),
-            "owner": item.get("owner"),
-            "repo": item.get("repo"),
-            "name": item.get("name") or title,
-            "title": title,
-            "full_name": item.get("full_name"),
-
-            "description": description,
-            "language": item.get("language"),
-            "languages": item.get("languages", {}),
-            "topics": item.get("topics", []),
-            "license": item.get("license"),
-
-            "stars": item["stars"],
-            "forks": item["forks"],
-            "watchers": item["watchers"],
-            "issues": item["issues"],
-            "open_issues": item["open_issues"],
-
-            "created_at": item.get("created_at"),
-            "updated_at": item.get("updated_at"),
-            "pushed_at": item.get("pushed_at"),
-
-            "has_readme": bool(readme),
-            "readme_length": len(readme),
-
-            # IR fields
-            "tokens": all_tokens,
-            "title_tokens": title_tokens,
-            "desc_tokens": desc_tokens,
-            "readme_tokens": readme_tokens,
-            "meta_tokens": meta_tokens,
-            "pop_tokens": pop_tokens,
-            "doc_length": len(all_tokens),
-
-            # Ranking features
-            "popularity_score": popularity_score,
-            "activity_score": activity_score,
-            "quality_score": quality_score,
-
-            # Ready-to-index text
-            "processed_text": " ".join(all_tokens)
-        })
+    processed = list(existing.values())
 
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(processed, f, indent=4, ensure_ascii=False)
 
-    print(f"Processed {len(processed)} repositories successfully.")
+    added = len(existing) - before_count
+    print(f"Processed {len(data)} raw records from {input_file}.")
+    print(f"Merged dataset: {len(processed)} total ({added} added, {len(data) - added} updated).")
     print(f"Saved to {output_file}")
 
 

@@ -51,6 +51,9 @@ class AIRequestResponse(BaseModel):
     repo_identifier: str | None = None
     model: str | None = None
     latency_ms: float | None = None
+    user_message: str | None = None
+    ai_response: str | None = None
+    response_mode: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

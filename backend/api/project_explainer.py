@@ -35,4 +35,5 @@ def explain_project_endpoint(
             profile=request.profile,
             query=request.query,
         ),
+        user_message=request.query,
     )

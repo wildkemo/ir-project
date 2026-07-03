@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 from backend.core.ai_advisor import advise
 from backend.core.ai_tracking import repo_identifier_from_payload, track_ai_request
 from backend.core.repo_comparator import compare_repos
-from backend.core.repo_explainer import answer_repo_question, explain_repo
+from backend.core.repo_explainer import answer_repo_question, explain_repo, _format_steps_roadmap
+from backend.core.repo_intelligence import get_repo_name
 from backend.core.roadmap_generator import generate_roadmap
 from backend.core.rag_advisor import chat_about_repo
 from backend.database.session import get_db
@@ -47,6 +48,7 @@ def explain(
             score_breakdown=request.score_breakdown,
             include_roadmap=request.include_roadmap,
         ),
+        user_message=request.query,
     )
 
 
@@ -59,16 +61,30 @@ def roadmap(
     """
     Generate a personalized roadmap for a selected repository.
     """
+    def _run():
+        roadmap = generate_roadmap(
+            repo=request.repo,
+            profile=request.profile,
+            query=request.query,
+        )
+        repo_name = get_repo_name(request.repo)
+        return {
+            **roadmap,
+            "mode": "rule_based",
+            "repo_name": repo_name,
+            "answer": (
+                f"Here is a personalized roadmap for **{repo_name}**:\n\n"
+                f"{_format_steps_roadmap(roadmap)}"
+            ),
+        }
+
     return track_ai_request(
         db,
         current_user,
         "learning_roadmap",
         repo_identifier_from_payload(request.repo),
-        lambda: generate_roadmap(
-            repo=request.repo,
-            profile=request.profile,
-            query=request.query,
-        ),
+        _run,
+        user_message=request.query,
     )
 
 
@@ -103,9 +119,10 @@ def chat(
     return track_ai_request(
         db,
         current_user,
-        "rag_explain",
+        "ai_chat",
         repo_identifier_from_payload(request.repo),
         _run,
+        user_message=request.message,
     )
 
 
@@ -129,6 +146,7 @@ def compare(
             profile=request.profile,
             query=request.query,
         ),
+        user_message=request.query,
     )
 
 
@@ -152,4 +170,5 @@ def summary(
             results=request.results,
             top_k=request.top_k,
         ),
+        user_message=request.query,
     )

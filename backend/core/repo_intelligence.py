@@ -121,6 +121,38 @@ def get_repo_url(repo: Dict[str, Any]) -> Optional[str]:
     return repo.get("html_url") or repo.get("url") or repo.get("repo_url")
 
 
+def get_repo_readme_text(repo: Dict[str, Any]) -> str:
+    """Best available long-form text for a repo (README or processed corpus)."""
+    for key in ("readme", "README", "readme_text", "processed_text", "embedding_text"):
+        value = repo.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def hydrate_repo_from_dataset(repo: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge search/UI payload with the full indexed dataset record when possible."""
+    identifier = get_repo_name(repo)
+    if not identifier or "/" not in identifier:
+        return repo
+
+    try:
+        from backend.core.semantic_loader import load_semantic_hybrid
+
+        hybrid = load_semantic_hybrid()
+        idx = hybrid.find_repo_index(identifier)
+        if idx is None:
+            return repo
+
+        doc = dict(hybrid.docs[idx])
+        for key, value in repo.items():
+            if value is not None and value != "":
+                doc[key] = value
+        return doc
+    except Exception:
+        return repo
+
+
 def get_combined_text(repo: Dict[str, Any]) -> str:
     parts = [
         repo.get("title"),
@@ -130,9 +162,7 @@ def get_combined_text(repo: Dict[str, Any]) -> str:
         " ".join(repo.get("topics", []) or []),
         " ".join((repo.get("languages") or {}).keys()) if isinstance(repo.get("languages"), dict) else "",
         repo.get("language"),
-        repo.get("readme"),
-        repo.get("README"),
-        repo.get("embedding_text"),
+        get_repo_readme_text(repo),
     ]
     return normalize_text(parts).lower()
 
@@ -168,7 +198,7 @@ def extract_readme_sections(repo: Dict[str, Any]) -> Dict[str, bool]:
     if isinstance(existing, dict) and existing:
         return {str(k): bool(v) for k, v in existing.items()}
 
-    readme = normalize_text(repo.get("readme") or repo.get("README") or repo.get("description")).lower()
+    readme = normalize_text(get_repo_readme_text(repo) or repo.get("description")).lower()
     sections = {}
     for section, keywords in README_SECTION_KEYWORDS.items():
         sections[section] = any(k.lower() in readme for k in keywords)
@@ -188,7 +218,7 @@ def compute_documentation_score(repo: Dict[str, Any], sections: Optional[Dict[st
         return clamp(float(repo["documentation_score"]))
 
     sections = sections or extract_readme_sections(repo)
-    readme_len = len(normalize_text(repo.get("readme") or repo.get("README")))
+    readme_len = len(normalize_text(get_repo_readme_text(repo)))
     score = 0.0
 
     if readme_len > 300:
@@ -365,7 +395,10 @@ def profile_language_match(repo: Dict[str, Any], profile: Optional[Dict[str, Any
 
 def enrich_repo(repo: Dict[str, Any]) -> Dict[str, Any]:
     """Return a shallow copy of repo with advisor features filled in."""
-    enriched = dict(repo)
+    base = repo
+    if get_repo_name(repo) and not get_repo_readme_text(repo):
+        base = hydrate_repo_from_dataset(repo)
+    enriched = dict(base)
 
     enriched.setdefault("name", get_repo_name(enriched))
     if get_repo_url(enriched):

@@ -1,6 +1,6 @@
 {
-  "fingerprint": "16cbb5134594fb2e1eb55e957a76d6ee8d05025822c5807533daaed67b9a90ed",
-  "doc_count": 1616,
+  "fingerprint": "81b457e4152e2acac46d3abb621c7e8d1ef1da5ca691339ab4931a465af4b8a2",
+  "doc_count": 2558,
   "model_name": "sentence-transformers/all-MiniLM-L6-v2",
   "data_path": "/run/media/taher27elmatbouly/New Volume/Taher/MSA/Semester 6/CS313/ir-project/processed.json"
 }

@@ -101,8 +101,11 @@ def record_ai_request(
     repo_identifier: str | None,
     model: str | None,
     latency_ms: float | None,
+    user_message: str | None = None,
+    ai_response: str | None = None,
+    response_mode: str | None = None,
 ) -> None:
-    """Record an AI feature usage entry."""
+    """Record an AI feature usage entry with optional prompt and response content."""
     db.add(
         AIRequest(
             user_id=user.id,
@@ -110,6 +113,9 @@ def record_ai_request(
             repo_identifier=repo_identifier,
             model=model,
             latency_ms=latency_ms,
+            user_message=user_message,
+            ai_response=ai_response,
+            response_mode=response_mode,
         )
     )
     db.commit()

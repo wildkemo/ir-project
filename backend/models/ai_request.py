@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Float, ForeignKey, String, func
+from sqlalchemy import DateTime, Float, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -29,6 +29,9 @@ class AIRequest(Base):
     repo_identifier: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     latency_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    user_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai_response: Mapped[str | None] = mapped_column(Text, nullable=True)
+    response_mode: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )

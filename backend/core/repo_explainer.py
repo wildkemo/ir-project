@@ -7,6 +7,7 @@ and user profile. This is the "Understand this repo" feature.
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any, Dict, List, Optional
 
 from backend.core.repo_intelligence import (
@@ -214,6 +215,28 @@ def _format_steps_roadmap(roadmap: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _pick_variant(seed: str, options: List[str]) -> str:
+    if not options:
+        return ""
+    idx = int(hashlib.md5(seed.encode("utf-8")).hexdigest(), 16) % len(options)
+    return options[idx]
+
+
+def _repo_facts(repo: Dict[str, Any], explained: Dict[str, Any]) -> Dict[str, str]:
+    topics = ", ".join((repo.get("topics") or [])[:5]) or "general development"
+    tech = ", ".join((explained.get("technologies") or repo.get("tech_stack") or [])[:5])
+    lang = repo.get("language") or "unspecified"
+    stars = repo.get("stars") or repo.get("stargazers_count") or "unknown"
+    return {
+        "topics": topics,
+        "tech": tech or lang,
+        "lang": lang,
+        "stars": str(stars),
+        "difficulty": explained.get("difficulty") or "not specified",
+        "best_for": explained.get("best_for") or "exploration",
+    }
+
+
 def answer_repo_question(
     repo: Dict[str, Any],
     message: str,
@@ -221,17 +244,22 @@ def answer_repo_question(
     history: Optional[List[Dict[str, str]]] = None,
 ) -> Dict[str, Any]:
     """Query-aware rule-based answer grounded in the selected repository."""
+    history = history or []
     repo = enrich_repo(repo)
     name = get_repo_name(repo)
     q = message.lower().strip()
     explained = explain_repo(repo, profile, query=message, include_roadmap=False)
+    facts = _repo_facts(repo, explained)
+    seed = f"{name}|{message}|{len(history)}"
 
     if any(k in q for k in ("roadmap", "learning path", "step by step", "how do i learn", "study plan")):
         roadmap = generate_roadmap(repo, profile, query=message)
-        answer = (
-            f"Here is a personalized roadmap for **{name}** based on your question:\n\n"
-            f"{_format_steps_roadmap(roadmap)}"
-        )
+        intro = _pick_variant(seed, [
+            f"Here is a personalized roadmap for **{name}** based on your question:",
+            f"For **{name}** ({facts['lang']}, topics: {facts['topics']}), here is a practical path:",
+            f"Tailored learning plan for **{name}** — grounded in its metadata and documentation signals:",
+        ])
+        answer = f"{intro}\n\n{_format_steps_roadmap(roadmap)}"
         return {
             "mode": "rule_based",
             "answer": answer,
@@ -239,34 +267,61 @@ def answer_repo_question(
             "repo_name": name,
         }
 
-    if any(k in q for k in ("beginner", "easy", "start", "new to", "first time")):
-        difficulty = explained.get("difficulty") or "unknown"
-        answer = (
-            f"For **{name}**, the estimated difficulty is **{difficulty}**. "
-            f"{explained['summary']}\n\n"
-            f"Best for: {explained['best_for']}.\n\n"
-            f"To get started: read the README, look for installation steps, and try the smallest example you can find."
-        )
-    elif any(k in q for k in ("unique", "different", "special", "stand out", "why this")):
+    if any(k in q for k in ("beginner", "easy", "start", "new to", "first time", "friendly")):
+        answer = _pick_variant(seed, [
+            (
+                f"**{name}** looks **{facts['difficulty']}** for newcomers. "
+                f"It is mainly **{facts['lang']}** and covers {facts['topics']}.\n\n"
+                f"{explained['summary']}\n\n"
+                f"Start with the README installation section, then run the smallest example. "
+                f"Best fit: {facts['best_for']}."
+            ),
+            (
+                f"For beginners asking about **{name}**: difficulty is **{facts['difficulty']}**. "
+                f"The repo has {facts['stars']} stars and focuses on {facts['tech']}.\n\n"
+                f"{explained['summary']}\n\n"
+                f"Tip: clone the repo, skim the folder structure, and change one small thing to build confidence."
+            ),
+            (
+                f"Getting started with **{name}** — estimated level: **{facts['difficulty']}**. "
+                f"Topics include {facts['topics']}.\n\n"
+                f"{explained['summary']}\n\n"
+                f"Recommended path: setup → README examples → one tiny modification."
+            ),
+        ])
+    elif any(k in q for k in ("unique", "different", "special", "stand out", "why this", "makes this")):
         strengths = explained.get("strengths") or []
-        answer = (
-            f"What makes **{name}** stand out:\n\n"
-            + "\n".join(f"• {s}" for s in strengths)
-            + f"\n\n{explained['summary']}"
-        )
+        bullets = "\n".join(f"• {s}" for s in strengths) or f"• Strong {facts['lang']} project in {facts['topics']}"
+        answer = _pick_variant(seed, [
+            f"What sets **{name}** apart:\n\n{bullets}\n\n{explained['summary']}",
+            f"**{name}** is distinctive because:\n\n{bullets}\n\nWith {facts['stars']} stars, it is best for {facts['best_for']}.",
+            f"Compared to similar repos, **{name}** highlights:\n\n{bullets}\n\n{explained['summary']}",
+        ])
     elif any(k in q for k in ("learn", "study", "skill", "understand", "teach")):
-        tech = ", ".join(explained.get("technologies") or []) or explained.get("topics", [])[:4]
-        answer = (
-            f"You can learn from **{name}** by exploring: {tech}.\n\n"
-            f"{explained['summary']}\n\n"
-            f"Focus on: {explained['best_for']}."
-        )
+        answer = _pick_variant(seed, [
+            (
+                f"From **{name}** you can learn **{facts['tech']}** and topics like {facts['topics']}.\n\n"
+                f"{explained['summary']}\n\n"
+                f"Focus area: {facts['best_for']}."
+            ),
+            (
+                f"**{name}** is a solid study resource for {facts['lang']} / {facts['topics']}.\n\n"
+                f"{explained['summary']}\n\n"
+                f"Try: read core modules, trace one feature end-to-end, then rebuild a mini version."
+            ),
+            (
+                f"Skills you can build with **{name}**: {facts['tech']}.\n\n"
+                f"{explained['summary']}\n\n"
+                f"Pair reading the README with exploring how {facts['lang']} is used in the codebase."
+            ),
+        ])
     elif any(k in q for k in ("weak", "limit", "risk", "concern", "problem")):
         weaknesses = explained.get("weaknesses") or []
-        answer = (
-            f"Potential limitations for **{name}**:\n\n"
-            + "\n".join(f"• {w}" for w in weaknesses)
-        )
+        bullets = "\n".join(f"• {w}" for w in weaknesses) or "• Limited signals in the dataset — verify maintenance and docs yourself."
+        answer = _pick_variant(seed, [
+            f"Watch-outs for **{name}**:\n\n{bullets}",
+            f"Before committing to **{name}**, consider:\n\n{bullets}\n\nStars: {facts['stars']}; difficulty: {facts['difficulty']}.",
+        ])
     elif any(k in q for k in ("contribut", "open source", "pull request", "issue")):
         roadmap = generate_roadmap(repo, profile, query="contribution")
         answer = (
@@ -279,18 +334,46 @@ def answer_repo_question(
             "roadmap": roadmap,
             "repo_name": name,
         }
+    elif history and any(k in q for k in ("more", "else", "another", "follow up", "tell me more")):
+        answer = _pick_variant(seed, [
+            (
+                f"Building on our chat about **{name}**: {explained['summary']}\n\n"
+                f"Deeper angle — explore {facts['topics']} in the source and compare with a similar {facts['lang']} repo."
+            ),
+            (
+                f"Another take on **{name}**: strengths include "
+                + (
+                    "; ".join((explained.get("strengths") or [])[:3])
+                    or "solid metadata match"
+                )
+                + ".\n\nNext: try the roadmap or ask about contribution steps."
+            ),
+        ])
     else:
         strengths = "\n".join(f"• {s}" for s in (explained.get("strengths") or [])[:4])
         weaknesses = "\n".join(f"• {w}" for w in (explained.get("weaknesses") or [])[:3])
-        answer = (
-            f"Regarding **{name}** — your question: \"{message}\"\n\n"
-            f"{explained['summary']}\n\n"
-            f"**Best for:** {explained['best_for']}\n"
-            f"**Difficulty:** {explained.get('difficulty') or 'not specified'}\n\n"
-            f"**Strengths:**\n{strengths or '• Relevant based on available metadata'}\n\n"
-            f"**Considerations:**\n{weaknesses or '• No major issues detected'}\n\n"
-            f"Ask a follow-up about roadmap, contribution, beginner-friendliness, or what you can learn."
-        )
+        answer = _pick_variant(seed, [
+            (
+                f"About **{name}** ({facts['lang']}, {facts['stars']} stars) — \"{message}\"\n\n"
+                f"{explained['summary']}\n\n"
+                f"**Best for:** {facts['best_for']}\n"
+                f"**Difficulty:** {facts['difficulty']}\n\n"
+                f"**Strengths:**\n{strengths or '• Relevant based on available metadata'}\n\n"
+                f"**Considerations:**\n{weaknesses or '• No major issues detected'}"
+            ),
+            (
+                f"For **{name}**, regarding \"{message}\":\n\n"
+                f"{explained['summary']}\n\n"
+                f"Technologies: {facts['tech']}. Topics: {facts['topics']}.\n"
+                f"Suited for {facts['best_for']} at **{facts['difficulty']}** level."
+            ),
+            (
+                f"**{name}** in context: {explained['summary']}\n\n"
+                f"Your question: \"{message}\"\n\n"
+                f"Key strengths:\n{strengths or '• Good match for the selected repo'}\n\n"
+                f"Ask about roadmap, beginner tips, or what makes this repo unique."
+            ),
+        ])
 
     return {
         "mode": "rule_based",

@@ -49,6 +49,7 @@ def explain_repo(
             profile=request.profile,
         ),
         model=os.getenv("OLLAMA_MODEL"),
+        user_message=request.query,
     )
 
 
@@ -69,6 +70,7 @@ def roadmap_repo(
             profile=request.profile,
         ),
         model=os.getenv("OLLAMA_MODEL"),
+        user_message=request.query,
     )
 
 
@@ -81,7 +83,7 @@ def chat_repo(
     return track_ai_request(
         db,
         current_user,
-        "rag_explain",
+        "ai_chat",
         repo_identifier_from_payload(request.repo),
         lambda: chat_about_repo(
             repo=request.repo,
@@ -90,4 +92,5 @@ def chat_repo(
             history=request.history,
         ),
         model=os.getenv("OLLAMA_MODEL"),
+        user_message=request.message,
     )
