@@ -5,7 +5,6 @@ import react from '@vitejs/plugin-react'
 
 const root = path.dirname(fileURLToPath(import.meta.url))
 
-// EMFILE on external/USB drives: avoid watching node_modules and use polling.
 const watchIgnored = [
   path.join(root, 'node_modules'),
   path.join(root, 'dist'),
@@ -19,6 +18,9 @@ const watchIgnored = [
 export default defineConfig({
   plugins: [react()],
   server: {
+    host: '0.0.0.0',
+    port: 5173,
+    allowedHosts: true,
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8000',
@@ -33,6 +35,9 @@ export default defineConfig({
     },
   },
   preview: {
+    host: '0.0.0.0',
+    port: 5173,
+    allowedHosts: true,
     watch: {
       usePolling: true,
       interval: 1000,

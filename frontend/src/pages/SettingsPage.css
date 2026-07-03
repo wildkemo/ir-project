@@ -1,0 +1,81 @@
+.settings-page { display: flex; flex-direction: column; gap: 2rem; }
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.settings-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.settings-section__title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.settings-section__desc {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.theme-selector { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+
+.theme-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.25rem 2rem;
+  background: var(--bg-elevated);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all var(--dur-fast);
+  position: relative;
+  flex: 1;
+  min-width: 120px;
+}
+.theme-option:hover { border-color: var(--border-strong); }
+.theme-option--active { border-color: var(--color-search); background: var(--color-search-bg); }
+
+.theme-option__icon { color: var(--text-secondary); }
+.theme-option--active .theme-option__icon { color: var(--color-search); }
+.theme-option__label { font-size: 0.875rem; font-weight: 600; color: var(--text-primary); }
+
+.theme-option__active-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: var(--color-search);
+  color: var(--text-on-accent);
+  padding: 0.15em 0.5em;
+  border-radius: var(--radius-full);
+}
+
+.settings-about { display: flex; flex-direction: column; gap: 0; }
+.settings-about__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.875rem;
+}
+.settings-about__row:last-child { border-bottom: none; }
+.settings-about__row span:first-child { color: var(--text-secondary); }
+.settings-about__row span:last-child  { color: var(--text-primary); font-weight: 500; }

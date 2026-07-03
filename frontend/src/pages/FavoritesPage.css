@@ -1,0 +1,76 @@
+.favorites-page { display: flex; flex-direction: column; gap: 2rem; }
+
+.favorites-page__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.favorites-page__item {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.125rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.favorites-page__repo-id {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.favorites-page__repo-id span {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.favorites-page__remove-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  transition: color var(--dur-fast), background var(--dur-fast);
+  flex-shrink: 0;
+}
+.favorites-page__remove-btn:hover { color: var(--color-error); background: var(--color-error-bg); }
+
+/* Shared page styles */
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.page-header__icon { flex-shrink: 0; }
+.page-header__icon--fav     { color: var(--color-fav); }
+.page-header__icon--ai      { color: var(--color-ai); }
+.page-header__icon--search  { color: var(--color-search); }
+.page-header__icon--roadmap { color: var(--color-roadmap); }
+.page-header__icon--compare { color: var(--color-compare); }
+.page-header__icon--rec     { color: var(--color-rec); }
+
+.page-header__title { font-size: 1.625rem; font-weight: 700; color: var(--text-primary); }
+.page-header__subtitle { font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.2rem; }
+
+.page-error {
+  padding: 1rem;
+  background: var(--color-error-bg);
+  border-radius: var(--radius-lg);
+  color: var(--color-error);
+  font-size: 0.875rem;
+}

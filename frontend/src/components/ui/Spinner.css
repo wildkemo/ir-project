@@ -1,0 +1,15 @@
+.spinner-wrap { display: inline-flex; align-items: center; }
+.spinner-wrap--center { display: flex; justify-content: center; width: 100%; }
+
+.spinner {
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--color-search);
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+.spinner--xs { width: 14px; height: 14px; }
+.spinner--sm { width: 18px; height: 18px; }
+.spinner--md { width: 24px; height: 24px; }
+.spinner--lg { width: 36px; height: 36px; }
+.spinner--xl { width: 48px; height: 48px; border-width: 3px; }

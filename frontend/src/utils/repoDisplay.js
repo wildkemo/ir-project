@@ -40,3 +40,20 @@ export function getRepoDisplayName(repo) {
 export function filterReposOnly(list) {
   return (Array.isArray(list) ? list : []).filter(isGitHubRepo);
 }
+
+/** Normalize a raw processed.json document for RepoCard / detail views. */
+export function normalizeRepoRecord(raw, identifier) {
+  if (!raw) return null;
+  const fullName = raw.full_name || identifier || raw.name;
+  return {
+    ...raw,
+    full_name: fullName,
+    title: fullName,
+    description: raw.description ?? raw.desc,
+    stars: raw.stars ?? raw.stargazers_count ?? 0,
+    forks: raw.forks ?? raw.forks_count ?? 0,
+    language: raw.language ?? raw.languages?.[0] ?? null,
+    topics: Array.isArray(raw.topics) ? raw.topics : [],
+    url: raw.url || (fullName ? `https://github.com/${fullName}` : null),
+  };
+}

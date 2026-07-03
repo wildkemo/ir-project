@@ -7,11 +7,14 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from sqlalchemy.exc import OperationalError
 from backend.core.rate_limit import limiter
 from sqlalchemy import text
 
+from backend.api.admin import router as admin_router
 from backend.api.advisor import router as advisor_router
 from backend.api.auth import router as auth_router
 from backend.api.favorites import router as favorites_router
@@ -61,6 +64,22 @@ app = FastAPI(
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.exception_handler(OperationalError)
+async def database_unavailable_handler(_request: Request, exc: OperationalError):
+    """Return a clear message when PostgreSQL is not reachable."""
+    logger.error("Database unavailable: %s", exc.orig if exc.orig else exc)
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": (
+                "Database is unavailable. Start PostgreSQL with "
+                "'docker compose up -d postgres', then run 'alembic upgrade head'."
+            )
+        },
+    )
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -127,3 +146,4 @@ app.include_router(users_router)
 app.include_router(preferences_router)
 app.include_router(favorites_router)
 app.include_router(history_router)
+app.include_router(admin_router)

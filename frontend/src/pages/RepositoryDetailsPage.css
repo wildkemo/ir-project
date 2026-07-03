@@ -1,0 +1,121 @@
+.repo-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.repo-details__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  min-height: 40vh;
+  color: var(--text-muted);
+}
+
+.repo-details__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.repo-details__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.repo-details__github {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--accent-search);
+  text-decoration: none;
+  font-size: 0.875rem;
+}
+
+.repo-details__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.repo-details__title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.repo-details__desc {
+  color: var(--text-muted);
+  margin: 0;
+  max-width: 70ch;
+}
+
+.repo-details__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.repo-details__meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.repo-details__topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.repo-details__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: var(--space-6);
+}
+
+.repo-details__panel,
+.repo-details__similar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.repo-details__panel-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.repo-details__panel-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.repo-details__similar-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.repo-details__similar-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--accent-rec);
+  text-decoration: none;
+  font-size: 0.875rem;
+}
+
+@media (max-width: 960px) {
+  .repo-details__layout {
+    grid-template-columns: 1fr;
+  }
+}

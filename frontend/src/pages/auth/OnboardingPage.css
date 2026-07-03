@@ -1,0 +1,28 @@
+.onboarding-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  padding: 2.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  box-shadow: var(--shadow-md);
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.onboarding-card__intro { display: flex; flex-direction: column; gap: 0.5rem; }
+.onboarding-card__badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-roadmap-text);
+  background: var(--color-roadmap-bg);
+  border-radius: var(--radius-full);
+  padding: 0.2em 0.7em;
+  width: fit-content;
+}
+.onboarding-card__title { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); }
+.onboarding-card__desc { font-size: 0.9rem; color: var(--text-secondary); margin: 0; }

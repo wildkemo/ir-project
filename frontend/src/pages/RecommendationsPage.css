@@ -1,0 +1,34 @@
+.recommendations-page { display: flex; flex-direction: column; gap: 1.5rem; }
+
+.recommendations-page__wizard {
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  padding: 1.75rem;
+}
+
+.recommendations-page__no-profile {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: var(--color-rec-bg);
+  border: 1px solid rgba(34,197,94,0.2);
+  border-radius: var(--radius-lg);
+  color: var(--color-rec);
+  flex-wrap: wrap;
+}
+.recommendations-page__no-profile div { flex: 1; min-width: 200px; }
+.recommendations-page__no-profile h3 { font-size: 0.9375rem; font-weight: 600; color: var(--text-primary); }
+.recommendations-page__no-profile p { font-size: 0.8375rem; color: var(--text-secondary); margin: 0.2rem 0 0; }
+
+.recommendations-page__count {
+  font-size: 0.875rem;
+  color: var(--text-tertiary);
+}
+
+.recommendations-page__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}

@@ -1,0 +1,36 @@
+.app-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-layout__body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.app-layout__main {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  height: calc(100vh - var(--topbar-h));
+}
+
+.app-layout__content {
+  padding: 1.75rem 2rem;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+@media (min-width: 1024px) {
+  .app-layout__main {
+    margin-left: var(--sidebar-w);
+  }
+}
+
+@media (max-width: 768px) {
+  .app-layout__content {
+    padding: 1rem;
+  }
+}

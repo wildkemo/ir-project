@@ -1,0 +1,52 @@
+.input-wrap { display: flex; flex-direction: column; gap: 0.375rem; }
+
+.input-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.input-field-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+.input-icon--left  { left:  0.75rem; }
+.input-icon--right { right: 0.75rem; }
+
+.input-field {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: 0.5625rem 0.875rem;
+  font-size: 0.9375rem;
+  color: var(--text-primary);
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+  outline: none;
+}
+.input-field::placeholder { color: var(--text-tertiary); }
+.input-field:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+}
+.input-field--error { border-color: var(--color-error) !important; }
+.input-field--textarea { resize: vertical; min-height: 100px; line-height: 1.6; }
+
+.input-field-wrap--icon-left  .input-field { padding-left: 2.5rem; }
+.input-field-wrap--icon-right .input-field { padding-right: 2.5rem; }
+
+.input-error { font-size: 0.8rem; color: var(--color-error); }
+.input-hint  { font-size: 0.8rem; color: var(--text-tertiary); }
+
+select.input-field { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.75rem center; padding-right: 2.25rem; }

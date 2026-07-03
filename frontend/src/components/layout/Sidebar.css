@@ -1,0 +1,154 @@
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: calc(var(--z-sticky) - 1);
+  backdrop-filter: blur(2px);
+}
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: var(--sidebar-w);
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  z-index: var(--z-sticky);
+  transform: translateX(-100%);
+  transition: transform var(--dur-slow) var(--ease-out);
+  overflow: hidden;
+}
+
+.sidebar--open { transform: translateX(0); }
+
+/* On wider screens, sidebar is always visible */
+@media (min-width: 1024px) {
+  .sidebar {
+    transform: translateX(0);
+    top: var(--topbar-h);
+  }
+  .sidebar-backdrop { display: none; }
+  .sidebar__header { display: none; }
+  .sidebar__close-btn { display: none; }
+}
+
+.sidebar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar__logo {
+  font-weight: 700;
+  font-size: 0.9375rem;
+  color: var(--text-primary);
+}
+.sidebar__close-btn {
+  color: var(--text-tertiary);
+  padding: 0.25rem;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  transition: color var(--dur-fast), background var(--dur-fast);
+}
+.sidebar__close-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+
+.sidebar__nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem 0.5rem;
+}
+
+.sidebar__list { display: flex; flex-direction: column; gap: 2px; }
+
+.sidebar__link {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color var(--dur-fast), background var(--dur-fast);
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-family: inherit;
+  width: 100%;
+  text-align: left;
+  position: relative;
+}
+.sidebar__link:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.sidebar__link--active {
+  background: var(--bg-active);
+  color: var(--color-search);
+}
+
+/* Feature color accents on active */
+.sidebar__link--search.sidebar__link--active  { color: var(--color-search-text); background: var(--color-search-bg); }
+.sidebar__link--rec.sidebar__link--active     { color: var(--color-rec-text);    background: var(--color-rec-bg); }
+.sidebar__link--fav.sidebar__link--active     { color: var(--color-fav-text);    background: var(--color-fav-bg); }
+.sidebar__link--ai.sidebar__link--active      { color: var(--color-ai-text);     background: var(--color-ai-bg); }
+.sidebar__link--compare.sidebar__link--active { color: var(--color-compare-text);background: var(--color-compare-bg); }
+.sidebar__link--roadmap.sidebar__link--active { color: var(--color-roadmap-text);background: var(--color-roadmap-bg); }
+
+.sidebar__link-icon { flex-shrink: 0; }
+.sidebar__link-label { flex: 1; }
+.sidebar__link-chevron {
+  opacity: 0;
+  transition: opacity var(--dur-fast);
+  flex-shrink: 0;
+}
+.sidebar__link:hover .sidebar__link-chevron,
+.sidebar__link--active .sidebar__link-chevron { opacity: 1; }
+
+.sidebar__footer {
+  padding: 0.5rem;
+  flex-shrink: 0;
+}
+.sidebar__divider { height: 1px; background: var(--border); margin-bottom: 0.5rem; }
+
+.sidebar__user {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: var(--radius-md);
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  margin-top: 0.5rem;
+  transition: background var(--dur-fast);
+}
+.sidebar__user:hover { background: var(--bg-hover); }
+
+.sidebar__user-info {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+.sidebar__user-name {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar__user-role {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
+  text-transform: capitalize;
+}
