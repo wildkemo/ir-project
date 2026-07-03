@@ -8,6 +8,7 @@ import { recommendFromProfile } from '../services/searchService';
 import { getFavorites, getSearchHistory, getAIHistory } from '../services/userService';
 import { useProfile } from '../hooks/useProfile';
 import { filterReposOnly } from '../utils/repoDisplay';
+import { aiTypeLabel } from '../utils/aiHistory';
 import RepoCard from '../features/search/RepoCard';
 import { SkeletonCard } from '../components/ui/Skeleton';
 import Button from '../components/ui/Button';
@@ -194,10 +195,14 @@ export default function DashboardPage() {
         <section className="dashboard-section">
           <SectionHeader title="AI Activity" icon={Cpu} color="ai" to="/history" />
           <div className="dashboard__ai-history">
-            {aiHistory.slice(0, 5).map((h, i) => (
-              <div key={i} className="dashboard__ai-entry">
+            {aiHistory.slice(0, 5).map((h) => (
+              <div key={h.id} className="dashboard__ai-entry">
                 <Cpu size={13} className="dashboard__ai-entry-icon" />
-                <span className="dashboard__ai-entry-type">{h.request_type}</span>
+                <span className="dashboard__ai-entry-type">
+                  {h.user_message
+                    ? (h.user_message.length > 50 ? `${h.user_message.slice(0, 50)}…` : h.user_message)
+                    : aiTypeLabel(h.request_type)}
+                </span>
                 <span className="dashboard__ai-entry-repo">{h.repo_identifier}</span>
                 {h.latency_ms != null && <span className="dashboard__ai-entry-lat">{Math.round(h.latency_ms)}ms</span>}
               </div>

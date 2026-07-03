@@ -13,13 +13,17 @@ export async function advisorRoadmap(payload) {
 }
 
 export async function advisorChat({ repo, message, profile, history = [] }) {
-  const { data } = await api.post('/api/advisor/chat', {
-    repo,
-    message,
-    profile,
-    history,
-  });
-  return data;
+  try {
+    return await ragChat({ repo, message, profile, history });
+  } catch {
+    const { data } = await api.post('/api/advisor/chat', {
+      repo,
+      message,
+      profile,
+      history,
+    });
+    return data;
+  }
 }
 
 export async function advisorCompare(payload) {

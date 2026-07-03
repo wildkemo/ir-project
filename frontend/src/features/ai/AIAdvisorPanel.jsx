@@ -7,8 +7,9 @@ import Badge from '../../components/ui/Badge';
 import {
   advisorChat, generateRepoRoadmap, extractAnswerText,
 } from '../../services/advisorService';
+import { getRepoDetails } from '../../services/searchService';
 import { getErrorMessage } from '../../services/api';
-import { getRepoDisplayName } from '../../utils/repoDisplay';
+import { getRepoDisplayName, normalizeRepoRecord } from '../../utils/repoDisplay';
 import './AIAdvisorPanel.css';
 
 const QUICK_PROMPTS = [
@@ -44,6 +45,7 @@ export default function AIAdvisorPanel({ repo, profile }) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [activeRepo, setActiveRepo] = useState(null);
   const chatEndRef = useRef(null);
   const repoId = repo?.full_name ?? repo?.title;
 
@@ -54,19 +56,39 @@ export default function AIAdvisorPanel({ repo, profile }) {
   useEffect(() => {
     if (!repoId) {
       setMessages([]);
+      setActiveRepo(null);
       return;
     }
+
     const name = getRepoDisplayName(repo);
     setMessages([
       {
         id: nextId(),
         role: 'assistant',
-        content: `Hi! I'm your AI advisor for **${name}**. Ask me anything about this repository — architecture, difficulty, how to learn it, or click **Generate Roadmap** for a step-by-step plan.`,
+        content: `Hi! I'm your AI advisor for **${name}**. Ask me anything about this repository — architecture, difficulty, how to learn it, or click **Generate Roadmap** for a step-by-step plan tailored to this repo.`,
         kind: 'welcome',
       },
     ]);
     setError(null);
     setInput('');
+    setActiveRepo(repo);
+
+    let cancelled = false;
+    getRepoDetails(repoId)
+      .then((data) => {
+        if (!cancelled) {
+          setActiveRepo(normalizeRepoRecord(data, repoId));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setActiveRepo(repo);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [repoId]);
 
   useEffect(() => {
@@ -82,7 +104,8 @@ export default function AIAdvisorPanel({ repo, profile }) {
 
   const sendMessage = async (text, { isRoadmap = false } = {}) => {
     const trimmed = text?.trim();
-    if (!trimmed || !repo || loading) return;
+    const repoPayload = activeRepo || repo;
+    if (!trimmed || !repoPayload || loading) return;
 
     const userMsg = {
       id: nextId(),
@@ -100,13 +123,13 @@ export default function AIAdvisorPanel({ repo, profile }) {
       let data;
       if (isRoadmap) {
         data = await generateRepoRoadmap({
-          repo,
+          repo: repoPayload,
           profile,
           query: trimmed,
         });
       } else {
         data = await advisorChat({
-          repo,
+          repo: repoPayload,
           message: trimmed,
           profile,
           history: buildHistory([...messages, userMsg]),
@@ -138,9 +161,9 @@ export default function AIAdvisorPanel({ repo, profile }) {
   };
 
   const handleRoadmap = () => {
-    const name = getRepoDisplayName(repo);
+    const name = getRepoDisplayName(activeRepo || repo);
     sendMessage(
-      `Generate a detailed learning roadmap for ${name}. Include setup, core concepts, practice tasks, and next steps tailored to this repository.`,
+      `Generate a detailed learning roadmap for ${name}. Include setup, core concepts, practice tasks, and next steps tailored to this repository's language, topics, and documentation.`,
       { isRoadmap: true },
     );
   };
@@ -154,7 +177,7 @@ export default function AIAdvisorPanel({ repo, profile }) {
     );
   }
 
-  const name = getRepoDisplayName(repo);
+  const name = getRepoDisplayName(activeRepo || repo);
 
   return (
     <div className="ai-panel ai-panel--chat">
@@ -176,9 +199,12 @@ export default function AIAdvisorPanel({ repo, profile }) {
               </div>
             )}
             <div className="chat-bubble__body">
-              {msg.model && (
+              {(msg.model || msg.meta) && (
                 <div className="chat-bubble__meta">
-                  <Badge variant="ai" size="sm">{msg.model}</Badge>
+                  {msg.model && <Badge variant="ai" size="sm">{msg.model}</Badge>}
+                  {msg.meta && !msg.model && (
+                    <Badge variant="default" size="sm">{msg.meta}</Badge>
+                  )}
                 </div>
               )}
               <div className="chat-bubble__content">

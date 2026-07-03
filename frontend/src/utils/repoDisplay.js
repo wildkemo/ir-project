@@ -45,6 +45,7 @@ export function filterReposOnly(list) {
 export function normalizeRepoRecord(raw, identifier) {
   if (!raw) return null;
   const fullName = raw.full_name || identifier || raw.name;
+  const readme = raw.readme ?? raw.README ?? raw.readme_text ?? raw.processed_text ?? null;
   return {
     ...raw,
     full_name: fullName,
@@ -55,5 +56,7 @@ export function normalizeRepoRecord(raw, identifier) {
     language: raw.language ?? raw.languages?.[0] ?? null,
     topics: Array.isArray(raw.topics) ? raw.topics : [],
     url: raw.url || (fullName ? `https://github.com/${fullName}` : null),
+    readme,
+    processed_text: raw.processed_text ?? readme,
   };
 }
