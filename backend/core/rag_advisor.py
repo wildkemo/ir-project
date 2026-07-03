@@ -87,7 +87,7 @@ Context:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        temperature=0.2,
+        temperature=0.55,
         max_tokens=900,
     )
 
@@ -116,6 +116,8 @@ If README/setup information is missing, say that clearly.
     user_prompt = f"""
 Create a practical learning/usage roadmap for this repository.
 
+User focus (if any): {query or "General learning path for this repository"}
+
 Use this structure:
 1. Roadmap Goal
 2. Before You Start
@@ -136,7 +138,54 @@ Context:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        temperature=0.2,
+        temperature=0.65,
+        max_tokens=1000,
+    )
+
+    return {
+        "mode": "rag_ollama",
+        "model": client.model,
+        "answer": answer,
+        "roadmap_type": "rag",
+    }
+
+
+def chat_about_repo(
+    repo: Dict[str, Any],
+    message: str,
+    profile: Optional[Dict[str, Any]] = None,
+    history: Optional[list[dict[str, str]]] = None,
+) -> Dict[str, Any]:
+    """Conversational Q&A about one repository with message history."""
+    context = build_repo_context(repo, message, profile)
+    history = history or []
+
+    system_prompt = f"""
+You are RepoMind AI Advisor — a helpful assistant that answers questions about ONE GitHub repository.
+
+Rules:
+- Use ONLY the repository context below. Do not invent facts.
+- If data is missing, say "Not available in the dataset".
+- Answer the user's specific question directly and conversationally.
+- Vary your wording; do not repeat the same template every time.
+- Keep answers practical and focused on the selected repo.
+- You may reference earlier messages in the conversation when relevant.
+
+REPOSITORY CONTEXT:
+{context}
+""".strip()
+
+    messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
+    for item in history[-8:]:
+        role = item.get("role", "user")
+        if role in ("user", "assistant"):
+            messages.append({"role": role, "content": str(item.get("content", ""))[:2000]})
+    messages.append({"role": "user", "content": message})
+
+    client = LLMClient()
+    answer = client.generate(
+        messages=messages,
+        temperature=0.75,
         max_tokens=900,
     )
 
@@ -144,4 +193,5 @@ Context:
         "mode": "rag_ollama",
         "model": client.model,
         "answer": answer,
+        "repo_name": repo.get("full_name") or repo.get("name"),
     }

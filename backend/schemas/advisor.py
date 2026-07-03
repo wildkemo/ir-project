@@ -16,6 +16,19 @@ class ExplainRepoRequest(BaseModel):
 class RoadmapRequest(BaseModel):
     repo: Dict[str, Any]
     profile: Optional[Dict[str, Any]] = None
+    query: Optional[str] = None
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class AdvisorChatRequest(BaseModel):
+    repo: Dict[str, Any]
+    message: str = Field(..., min_length=1, max_length=2000)
+    profile: Optional[Dict[str, Any]] = None
+    history: List[ChatMessage] = Field(default_factory=list)
 
 
 class CompareReposRequest(BaseModel):

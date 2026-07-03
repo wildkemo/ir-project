@@ -150,8 +150,22 @@ def generate_general_roadmap(repo: Dict[str, Any], profile: Optional[Dict[str, A
     }
 
 
-def generate_roadmap(repo: Dict[str, Any], profile: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def generate_roadmap(
+    repo: Dict[str, Any],
+    profile: Optional[Dict[str, Any]] = None,
+    query: Optional[str] = None,
+) -> Dict[str, Any]:
     goal = _goal(profile)
+    q = (query or "").lower()
+
+    if any(k in q for k in ("contribut", "open source", "open-source", "pull request", "pr ")):
+        return generate_contribution_roadmap(repo, profile)
+    if any(k in q for k in ("production", "deploy", "integrat", "adopt", "use in")):
+        return generate_production_roadmap(repo, profile)
+    if any(k in q for k in ("portfolio", "showcase", "resume")):
+        return generate_portfolio_roadmap(repo, profile)
+    if any(k in q for k in ("learn", "study", "tutorial", "beginner", "roadmap")):
+        return generate_learning_roadmap(repo, profile)
 
     if "learn" in goal or "education" in goal:
         return generate_learning_roadmap(repo, profile)

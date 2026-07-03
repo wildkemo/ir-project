@@ -176,7 +176,7 @@ def explain_repo(
     include_roadmap: bool = True,
 ) -> Dict[str, Any]:
     repo = enrich_repo(repo)
-    roadmap = generate_roadmap(repo, profile) if include_roadmap else None
+    roadmap = generate_roadmap(repo, profile, query=query) if include_roadmap else None
 
     return {
         "repo_name": get_repo_name(repo),
@@ -197,4 +197,104 @@ def explain_repo(
         "weaknesses": detect_weaknesses(repo),
         "why_recommended": why_recommended(repo, profile, query, score_breakdown),
         "roadmap": roadmap,
+    }
+
+
+def _format_steps_roadmap(roadmap: Dict[str, Any]) -> str:
+    lines = [roadmap.get("title", "Learning Roadmap"), ""]
+    for i, step in enumerate(roadmap.get("steps") or [], 1):
+        if isinstance(step, dict):
+            title = step.get("title") or step.get("name") or f"Step {i}"
+            desc = step.get("description") or ""
+            lines.append(f"{i}. {title}")
+            if desc:
+                lines.append(f"   {desc}")
+        else:
+            lines.append(f"{i}. {step}")
+    return "\n".join(lines)
+
+
+def answer_repo_question(
+    repo: Dict[str, Any],
+    message: str,
+    profile: Optional[Dict[str, Any]] = None,
+    history: Optional[List[Dict[str, str]]] = None,
+) -> Dict[str, Any]:
+    """Query-aware rule-based answer grounded in the selected repository."""
+    repo = enrich_repo(repo)
+    name = get_repo_name(repo)
+    q = message.lower().strip()
+    explained = explain_repo(repo, profile, query=message, include_roadmap=False)
+
+    if any(k in q for k in ("roadmap", "learning path", "step by step", "how do i learn", "study plan")):
+        roadmap = generate_roadmap(repo, profile, query=message)
+        answer = (
+            f"Here is a personalized roadmap for **{name}** based on your question:\n\n"
+            f"{_format_steps_roadmap(roadmap)}"
+        )
+        return {
+            "mode": "rule_based",
+            "answer": answer,
+            "roadmap": roadmap,
+            "repo_name": name,
+        }
+
+    if any(k in q for k in ("beginner", "easy", "start", "new to", "first time")):
+        difficulty = explained.get("difficulty") or "unknown"
+        answer = (
+            f"For **{name}**, the estimated difficulty is **{difficulty}**. "
+            f"{explained['summary']}\n\n"
+            f"Best for: {explained['best_for']}.\n\n"
+            f"To get started: read the README, look for installation steps, and try the smallest example you can find."
+        )
+    elif any(k in q for k in ("unique", "different", "special", "stand out", "why this")):
+        strengths = explained.get("strengths") or []
+        answer = (
+            f"What makes **{name}** stand out:\n\n"
+            + "\n".join(f"• {s}" for s in strengths)
+            + f"\n\n{explained['summary']}"
+        )
+    elif any(k in q for k in ("learn", "study", "skill", "understand", "teach")):
+        tech = ", ".join(explained.get("technologies") or []) or explained.get("topics", [])[:4]
+        answer = (
+            f"You can learn from **{name}** by exploring: {tech}.\n\n"
+            f"{explained['summary']}\n\n"
+            f"Focus on: {explained['best_for']}."
+        )
+    elif any(k in q for k in ("weak", "limit", "risk", "concern", "problem")):
+        weaknesses = explained.get("weaknesses") or []
+        answer = (
+            f"Potential limitations for **{name}**:\n\n"
+            + "\n".join(f"• {w}" for w in weaknesses)
+        )
+    elif any(k in q for k in ("contribut", "open source", "pull request", "issue")):
+        roadmap = generate_roadmap(repo, profile, query="contribution")
+        answer = (
+            f"Contribution path for **{name}**:\n\n"
+            f"{_format_steps_roadmap(roadmap)}"
+        )
+        return {
+            "mode": "rule_based",
+            "answer": answer,
+            "roadmap": roadmap,
+            "repo_name": name,
+        }
+    else:
+        strengths = "\n".join(f"• {s}" for s in (explained.get("strengths") or [])[:4])
+        weaknesses = "\n".join(f"• {w}" for w in (explained.get("weaknesses") or [])[:3])
+        answer = (
+            f"Regarding **{name}** — your question: \"{message}\"\n\n"
+            f"{explained['summary']}\n\n"
+            f"**Best for:** {explained['best_for']}\n"
+            f"**Difficulty:** {explained.get('difficulty') or 'not specified'}\n\n"
+            f"**Strengths:**\n{strengths or '• Relevant based on available metadata'}\n\n"
+            f"**Considerations:**\n{weaknesses or '• No major issues detected'}\n\n"
+            f"Ask a follow-up about roadmap, contribution, beginner-friendliness, or what you can learn."
+        )
+
+    return {
+        "mode": "rule_based",
+        "answer": answer,
+        "repo_name": name,
+        "context": explained,
     }

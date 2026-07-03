@@ -1,73 +1,130 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import {
-  Cpu, Loader2, AlertCircle, BookOpen, Map, GitCompare, HelpCircle, Brain, FileText,
+  Cpu, Loader2, AlertCircle, BookOpen, Map, HelpCircle, Send, Sparkles,
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import {
-  advisorExplain, advisorRoadmap, explainProject, ragExplain, ragRoadmap,
+  advisorChat, generateRepoRoadmap, extractAnswerText,
 } from '../../services/advisorService';
 import { getErrorMessage } from '../../services/api';
 import { getRepoDisplayName } from '../../utils/repoDisplay';
 import './AIAdvisorPanel.css';
 
-const QUICK_QUESTIONS = [
-  { icon: HelpCircle,  label: 'Is it beginner-friendly?',        type: 'explain' },
-  { icon: BookOpen,    label: 'What can I learn from this?',      type: 'explain' },
-  { icon: GitCompare,  label: 'What makes this unique?',          type: 'explain' },
-  { icon: Map,         label: 'Generate a learning roadmap',      type: 'roadmap' },
+const QUICK_PROMPTS = [
+  { icon: HelpCircle, label: 'Is it beginner-friendly?' },
+  { icon: BookOpen,   label: 'What can I learn from this?' },
+  { icon: Sparkles,   label: 'What makes this repo unique?' },
+  { icon: Map,        label: 'How should I get started?' },
 ];
 
-const MODES = [
-  { id: 'advisor',   label: 'Advisor',   icon: Cpu },
-  { id: 'explainer', label: 'Explainer', icon: FileText },
-  { id: 'rag',       label: 'RAG (AI)',  icon: Brain },
-];
+let messageId = 0;
+function nextId() {
+  messageId += 1;
+  return `msg-${messageId}`;
+}
+
+function formatMessageContent(text) {
+  if (!text) return null;
+  return text.split('\n').map((line, i) => {
+    if (!line.trim()) return null;
+    const bold = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    return (
+      <p
+        key={i}
+        className={/^\d+[\.\)]/.test(line.trim()) ? 'chat-bubble__step' : undefined}
+        dangerouslySetInnerHTML={{ __html: bold }}
+      />
+    );
+  });
+}
 
 export default function AIAdvisorPanel({ repo, profile }) {
-  const [result, setResult] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [activeType, setActiveType] = useState(null);
-  const [mode, setMode] = useState('advisor');
-  const [customQuery, setCustomQuery] = useState('');
+  const chatEndRef = useRef(null);
+  const repoId = repo?.full_name ?? repo?.title;
 
-  if (!repo) {
-    return (
-      <div className="ai-panel ai-panel--empty">
-        <Cpu size={32} className="ai-panel__empty-icon" />
-        <p>Select a repository to activate the AI Advisor.</p>
-      </div>
-    );
-  }
+  const scrollToBottom = useCallback(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
 
-  const name = getRepoDisplayName(repo);
+  useEffect(() => {
+    if (!repoId) {
+      setMessages([]);
+      return;
+    }
+    const name = getRepoDisplayName(repo);
+    setMessages([
+      {
+        id: nextId(),
+        role: 'assistant',
+        content: `Hi! I'm your AI advisor for **${name}**. Ask me anything about this repository — architecture, difficulty, how to learn it, or click **Generate Roadmap** for a step-by-step plan.`,
+        kind: 'welcome',
+      },
+    ]);
+    setError(null);
+    setInput('');
+  }, [repoId]);
 
-  const runQuery = async (type, query = null) => {
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, loading, scrollToBottom]);
+
+  const buildHistory = (currentMessages) =>
+    currentMessages
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .filter((m) => m.kind !== 'welcome')
+      .slice(-10)
+      .map((m) => ({ role: m.role, content: m.content }));
+
+  const sendMessage = async (text, { isRoadmap = false } = {}) => {
+    const trimmed = text?.trim();
+    if (!trimmed || !repo || loading) return;
+
+    const userMsg = {
+      id: nextId(),
+      role: 'user',
+      content: trimmed,
+      kind: isRoadmap ? 'roadmap-request' : 'question',
+    };
+
+    setMessages((prev) => [...prev, userMsg]);
+    setInput('');
     setLoading(true);
     setError(null);
-    setResult(null);
-    setActiveType(type);
 
     try {
       let data;
-      if (mode === 'rag') {
-        data = type === 'roadmap'
-          ? await ragRoadmap({ repo, profile, query: query || null })
-          : await ragExplain({ repo, profile, query: query || null });
-      } else if (mode === 'explainer') {
-        data = await explainProject({ repo, profile, query: query || null });
-      } else if (type === 'roadmap') {
-        data = await advisorRoadmap({ repo, profile });
-      } else {
-        data = await advisorExplain({
+      if (isRoadmap) {
+        data = await generateRepoRoadmap({
           repo,
           profile,
-          query: query || null,
-          include_roadmap: false,
+          query: trimmed,
+        });
+      } else {
+        data = await advisorChat({
+          repo,
+          message: trimmed,
+          profile,
+          history: buildHistory([...messages, userMsg]),
         });
       }
-      setResult({ type, data, mode });
+
+      const answer = extractAnswerText(data);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: nextId(),
+          role: 'assistant',
+          content: answer,
+          kind: isRoadmap ? 'roadmap' : 'answer',
+          meta: data.mode || data.roadmap_type,
+          model: data.model,
+        },
+      ]);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -75,256 +132,130 @@ export default function AIAdvisorPanel({ repo, profile }) {
     }
   };
 
-  const handleCustomQuery = (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    if (!customQuery.trim()) return;
-    runQuery(mode === 'explainer' ? 'explainer' : 'explain', customQuery.trim());
-    setCustomQuery('');
+    sendMessage(input);
   };
 
+  const handleRoadmap = () => {
+    const name = getRepoDisplayName(repo);
+    sendMessage(
+      `Generate a detailed learning roadmap for ${name}. Include setup, core concepts, practice tasks, and next steps tailored to this repository.`,
+      { isRoadmap: true },
+    );
+  };
+
+  if (!repo) {
+    return (
+      <div className="ai-panel ai-panel--empty">
+        <Cpu size={32} className="ai-panel__empty-icon" />
+        <p>Select a repository to start chatting with the AI Advisor.</p>
+      </div>
+    );
+  }
+
+  const name = getRepoDisplayName(repo);
+
   return (
-    <div className="ai-panel">
+    <div className="ai-panel ai-panel--chat">
       <div className="ai-panel__header">
         <Cpu size={16} className="ai-panel__header-icon" />
-        <span className="ai-panel__header-title">AI Advisor</span>
+        <span className="ai-panel__header-title">AI Chat</span>
         <span className="ai-panel__header-repo">{name}</span>
       </div>
 
-      <div className="ai-panel__modes">
-        {MODES.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            type="button"
-            className={`ai-panel__mode-btn ${mode === id ? 'ai-panel__mode-btn--active' : ''}`}
-            onClick={() => { setMode(id); setResult(null); setError(null); }}
+      <div className="ai-chat__messages">
+        {messages.map((msg) => (
+          <div
+            key={msg.id}
+            className={`chat-bubble chat-bubble--${msg.role} ${msg.kind ? `chat-bubble--${msg.kind}` : ''}`}
           >
-            <Icon size={13} />
-            {label}
-          </button>
+            {msg.role === 'assistant' && (
+              <div className="chat-bubble__avatar">
+                <Cpu size={14} />
+              </div>
+            )}
+            <div className="chat-bubble__body">
+              {msg.model && (
+                <div className="chat-bubble__meta">
+                  <Badge variant="ai" size="sm">{msg.model}</Badge>
+                </div>
+              )}
+              <div className="chat-bubble__content">
+                {formatMessageContent(msg.content)}
+              </div>
+            </div>
+          </div>
         ))}
-      </div>
 
-      {mode === 'advisor' && (
-        <div className="ai-panel__quick-actions">
-          {QUICK_QUESTIONS.map(({ icon: Icon, label, type }) => (
-            <button
-              key={label}
-              className="ai-panel__quick-btn"
-              onClick={() => runQuery(type, type === 'explain' ? label : null)}
-              disabled={loading}
-            >
-              <Icon size={14} />
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {mode === 'explainer' && (
-        <p className="ai-panel__mode-hint">
-          Structured project analysis with README insights, metrics, and usage guidance.
-        </p>
-      )}
-
-      {mode === 'rag' && (
-        <p className="ai-panel__mode-hint">
-          Ollama-powered explanations. Requires a running local Ollama instance.
-        </p>
-      )}
-
-      <form className="ai-panel__custom" onSubmit={handleCustomQuery}>
-        <input
-          className="ai-panel__custom-input"
-          type="text"
-          placeholder={
-            mode === 'explainer'
-              ? 'Ask about this project…'
-              : mode === 'rag'
-                ? 'Ask the RAG model…'
-                : 'Ask anything about this repo…'
-          }
-          value={customQuery}
-          onChange={(e) => setCustomQuery(e.target.value)}
-          disabled={loading}
-        />
-        <Button type="submit" variant="ai" size="sm" disabled={!customQuery.trim() || loading}>
-          Ask
-        </Button>
-      </form>
-
-      {mode !== 'advisor' && (
-        <div className="ai-panel__mode-actions">
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={<FileText size={13} />}
-            loading={loading && activeType === 'explainer'}
-            onClick={() => runQuery('explainer')}
-          >
-            {mode === 'explainer' ? 'Explain project' : 'Quick explain'}
-          </Button>
-          <Button
-            variant="roadmap"
-            size="sm"
-            icon={<Map size={13} />}
-            loading={loading && activeType === 'roadmap'}
-            onClick={() => runQuery('roadmap')}
-          >
-            Roadmap
-          </Button>
-        </div>
-      )}
-
-      <div className="ai-panel__output">
         {loading && (
-          <div className="ai-panel__loading">
-            <Loader2 size={20} className="ai-panel__loading-icon" />
-            <span>Analyzing repository…</span>
+          <div className="chat-bubble chat-bubble--assistant chat-bubble--typing">
+            <div className="chat-bubble__avatar"><Loader2 size={14} className="ai-panel__loading-icon" /></div>
+            <div className="chat-bubble__body">
+              <span className="chat-bubble__typing-text">Thinking about {name}…</span>
+            </div>
           </div>
         )}
 
-        {error && !loading && (
+        {error && (
           <div className="ai-panel__error">
             <AlertCircle size={16} />
             <span>{error}</span>
           </div>
         )}
 
-        {result && !loading && (
-          <div className="ai-panel__result animate-fade-in">
-            {result.mode === 'rag' && <RagResult data={result.data} />}
-            {result.mode === 'explainer' && <ProjectExplainerResult data={result.data} />}
-            {result.mode === 'advisor' && result.type === 'explain' && (
-              <ExplainResult data={result.data} />
-            )}
-            {result.mode === 'advisor' && result.type === 'roadmap' && (
-              <RoadmapResult data={result.data} />
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ExplainResult({ data }) {
-  const explanation = data.explanation || data.summary || data.result || JSON.stringify(data, null, 2);
-  const scoreBreakdown = data.score_breakdown || data.scores;
-
-  return (
-    <div className="ai-result">
-      {data.title && <h4 className="ai-result__title">{data.title}</h4>}
-      <div className="ai-result__text">
-        {typeof explanation === 'string'
-          ? explanation.split('\n').map((line, i) => <p key={i}>{line}</p>)
-          : <pre>{JSON.stringify(explanation, null, 2)}</pre>
-        }
+        <div ref={chatEndRef} />
       </div>
 
-      {scoreBreakdown && (
-        <div className="ai-result__scores">
-          {Object.entries(scoreBreakdown).map(([key, val]) => (
-            <div key={key} className="ai-result__score-item">
-              <span className="ai-result__score-label">{key.replace(/_/g, ' ')}</span>
-              <div className="ai-result__score-bar">
-                <div
-                  className="ai-result__score-fill"
-                  style={{ width: `${Math.round((val <= 1 ? val * 100 : val))}%` }}
-                />
-              </div>
-              <span className="ai-result__score-value">
-                {Math.round(val <= 1 ? val * 100 : val)}%
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function RoadmapResult({ data }) {
-  const steps = data.steps;
-  const text = data.roadmap || data.result || data.content;
-
-  return (
-    <div className="ai-result">
-      <h4 className="ai-result__title">{data.title || 'Learning Roadmap'}</h4>
-      {Array.isArray(steps) ? (
-        <ol className="ai-result__steps">
-          {steps.map((step, i) => (
-            <li key={i}>
-              <strong>{step.title || step.name || `Step ${i + 1}`}</strong>
-              {step.description && <p>{step.description}</p>}
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <div className="ai-result__text roadmap-text">
-          {typeof text === 'string'
-            ? text.split('\n').map((line, i) => {
-                if (!line.trim()) return null;
-                const isStep = /^\d+[\.\)]/.test(line.trim()) || /^[-•*]/.test(line.trim());
-                return (
-                  <p key={i} className={isStep ? 'roadmap-step' : ''}>
-                    {line}
-                  </p>
-                );
-              })
-            : <pre>{JSON.stringify(text, null, 2)}</pre>
-          }
-        </div>
-      )}
-    </div>
-  );
-}
-
-function RagResult({ data }) {
-  return (
-    <div className="ai-result">
-      <div className="ai-result__meta">
-        {data.model && <Badge variant="ai" size="sm">{data.model}</Badge>}
-        {data.mode && <Badge variant="default" size="sm">{data.mode}</Badge>}
-      </div>
-      <div className="ai-result__text">
-        {(data.answer || '').split('\n').map((line, i) => (
-          line.trim() ? <p key={i}>{line}</p> : null
+      <div className="ai-chat__quick">
+        {QUICK_PROMPTS.map(({ icon: Icon, label }) => (
+          <button
+            key={label}
+            type="button"
+            className="ai-panel__quick-btn"
+            onClick={() => sendMessage(label)}
+            disabled={loading}
+          >
+            <Icon size={14} />
+            {label}
+          </button>
         ))}
       </div>
-    </div>
-  );
-}
 
-function ProjectExplainerResult({ data }) {
-  const sections = [
-    ['Summary', data.project_summary],
-    ['Best for', data.best_for],
-    ['Difficulty', data.difficulty],
-    ['Strengths', data.strengths],
-    ['Limitations', data.limitations],
-    ['How to use', data.how_to_use_it],
-    ['Why it matches', data.why_it_matches],
-  ].filter(([, value]) => value);
+      <div className="ai-chat__roadmap-row">
+        <Button
+          variant="roadmap"
+          size="sm"
+          icon={<Map size={14} />}
+          loading={loading}
+          onClick={handleRoadmap}
+          disabled={loading}
+        >
+          Generate Roadmap
+        </Button>
+        <span className="ai-chat__roadmap-hint">Creates a step-by-step plan for {name.split('/').pop()}</span>
+      </div>
 
-  return (
-    <div className="ai-result">
-      {data.repo_identity?.full_name && (
-        <h4 className="ai-result__title">{data.repo_identity.full_name}</h4>
-      )}
-      {sections.map(([label, value]) => (
-        <div key={label} className="ai-result__section">
-          <h5>{label}</h5>
-          {Array.isArray(value) ? (
-            <ul>
-              {value.map((item, i) => <li key={i}>{typeof item === 'string' ? item : JSON.stringify(item)}</li>)}
-            </ul>
-          ) : typeof value === 'object' ? (
-            <pre>{JSON.stringify(value, null, 2)}</pre>
-          ) : (
-            <p>{String(value)}</p>
-          )}
-        </div>
-      ))}
+      <form className="ai-chat__input-row" onSubmit={handleSubmit}>
+        <input
+          className="ai-panel__custom-input"
+          type="text"
+          placeholder={`Ask about ${name}…`}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          disabled={loading}
+        />
+        <Button
+          type="submit"
+          variant="ai"
+          size="sm"
+          icon={<Send size={14} />}
+          disabled={!input.trim() || loading}
+          aria-label="Send message"
+        >
+          Send
+        </Button>
+      </form>
     </div>
   );
 }

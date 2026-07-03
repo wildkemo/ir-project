@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Map, Loader2, AlertCircle, Download, BookOpen, ChevronRight } from 'lucide-react';
 import Button from '../../components/ui/Button';
-import { advisorRoadmap } from '../../services/advisorService';
+import { generateRepoRoadmap, extractAnswerText } from '../../services/advisorService';
 import { getErrorMessage } from '../../services/api';
 import { getRepoDisplayName } from '../../utils/repoDisplay';
 import './RoadmapView.css';
@@ -10,6 +10,14 @@ export default function RoadmapView({ repo, profile, savedRoadmap, onSave }) {
   const [result, setResult] = useState(savedRoadmap ?? null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [focus, setFocus] = useState('');
+  const repoId = repo?.full_name ?? repo?.title;
+
+  useEffect(() => {
+    setResult(savedRoadmap ?? null);
+    setError(null);
+    setFocus('');
+  }, [repoId, savedRoadmap]);
 
   if (!repo) {
     return (
@@ -26,7 +34,10 @@ export default function RoadmapView({ repo, profile, savedRoadmap, onSave }) {
     setLoading(true);
     setError(null);
     try {
-      const data = await advisorRoadmap({ repo, profile });
+      const query = focus.trim()
+        ? `Create a learning roadmap for ${name} with this focus: ${focus.trim()}`
+        : `Create a personalized step-by-step learning roadmap for ${name}`;
+      const data = await generateRepoRoadmap({ repo, profile, query });
       setResult(data);
       onSave?.(data);
     } catch (err) {
@@ -38,7 +49,7 @@ export default function RoadmapView({ repo, profile, savedRoadmap, onSave }) {
 
   const handleDownload = () => {
     if (!result) return;
-    const text = result.roadmap || result.result || JSON.stringify(result, null, 2);
+    const text = extractAnswerText(result);
     const blob = new Blob([`# Learning Roadmap: ${name}\n\n${text}`], { type: 'text/markdown' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
@@ -80,6 +91,17 @@ export default function RoadmapView({ repo, profile, savedRoadmap, onSave }) {
         </div>
       </div>
 
+      <div className="roadmap-view__focus">
+        <input
+          type="text"
+          className="roadmap-view__focus-input"
+          placeholder={`Optional focus for ${name.split('/').pop()} (e.g. contribution, deployment, beginners)…`}
+          value={focus}
+          onChange={(e) => setFocus(e.target.value)}
+          disabled={loading}
+        />
+      </div>
+
       {error && (
         <div className="roadmap-view__error">
           <AlertCircle size={14} />
@@ -91,8 +113,8 @@ export default function RoadmapView({ repo, profile, savedRoadmap, onSave }) {
         <div className="roadmap-view__loading">
           <Loader2 size={20} className="roadmap-view__spin" />
           <div>
-            <p className="roadmap-view__loading-title">Generating your roadmap…</p>
-            <p className="roadmap-view__loading-sub">This may take a moment.</p>
+            <p className="roadmap-view__loading-title">Generating roadmap for {name}…</p>
+            <p className="roadmap-view__loading-sub">Analyzing repository context and your profile.</p>
           </div>
         </div>
       )}
@@ -106,7 +128,7 @@ export default function RoadmapView({ repo, profile, savedRoadmap, onSave }) {
       {!result && !loading && !error && (
         <div className="roadmap-view__prompt">
           <BookOpen size={24} className="roadmap-view__prompt-icon" />
-          <p>Click "Generate Roadmap" to get a personalized step-by-step learning plan for <strong>{name}</strong>.</p>
+          <p>Click &quot;Generate Roadmap&quot; to get a personalized step-by-step learning plan for <strong>{name}</strong>.</p>
         </div>
       )}
     </div>
@@ -114,13 +136,29 @@ export default function RoadmapView({ repo, profile, savedRoadmap, onSave }) {
 }
 
 function RoadmapContent({ data, repoName }) {
-  const text = data.roadmap || data.result || data.content || '';
+  const text = extractAnswerText(data);
+  const steps = data?.roadmap?.steps || data?.steps;
+
+  if (Array.isArray(steps) && steps.length > 0) {
+    return (
+      <div className="roadmap-sections">
+        <h4 className="roadmap-content__title">{data.roadmap?.title || data.title || `Roadmap for ${repoName}`}</h4>
+        <ol className="roadmap-structured-steps">
+          {steps.map((step, i) => (
+            <li key={i}>
+              <strong>{typeof step === 'string' ? step : step.title || step.name || `Step ${i + 1}`}</strong>
+              {typeof step === 'object' && step.description && <p>{step.description}</p>}
+            </li>
+          ))}
+        </ol>
+      </div>
+    );
+  }
 
   if (!text) {
     return <pre className="roadmap-raw">{JSON.stringify(data, null, 2)}</pre>;
   }
 
-  // Parse sections from the roadmap text
   const lines = text.split('\n').filter((l) => l.trim());
   const sections = [];
   let currentSection = null;

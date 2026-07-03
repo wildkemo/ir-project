@@ -164,3 +164,32 @@
   overflow: auto;
   color: var(--text-secondary);
 }
+
+.roadmap-view__focus { margin-top: -0.25rem; }
+
+.roadmap-view__focus-input {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  font-family: inherit;
+}
+
+.roadmap-content__title { margin: 0 0 0.75rem; font-size: 1rem; }
+
+.roadmap-structured-steps {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.roadmap-structured-steps p {
+  margin: 0.25rem 0 0;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
